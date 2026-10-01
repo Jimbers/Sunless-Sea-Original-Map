@@ -67,6 +67,10 @@ input[type=checkbox] { accent-color: var(--gold); width: 15px; height: 15px; mar
   color: var(--gold); text-decoration: none; font: 500 1.02rem var(--f-serif); background: rgba(231,200,125,.05); }
 .dl:hover { background: rgba(231,200,125,.12); border-color: var(--gold); }
 .dl .sz { margin-left: auto; white-space: nowrap; font: .72rem var(--f-ui); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.dlmore { margin: -2px 0 10px; font-size: .78rem; color: var(--ink-dim); }
+.dlmore a { color: var(--gold); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.dlmore a:hover { border-color: var(--gold); }
+.dlnote { margin: -4px 0 9px; font-size: .74rem; color: var(--ink-dim); line-height: 1.35; }
 .dl:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .panel footer .scale { font-variant-numeric: tabular-nums; color: var(--ink); }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
@@ -119,10 +123,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
     <div class="eyebrow">Layers</div>
   </div>
   <footer>
-    <a class="dl" href="downloads/IslesMap_QGIS.zip" download>
-      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 1.5v8.2M4.6 6.6 8 10l3.4-3.4M2.5 12.2v2.3h11v-2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>Download the QGIS project</span><span class="sz">2.1 MB</span>
+    <a class="dl" href="3d/">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M1.5 13.5 6 6l3 4.5 2-3 3.5 6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      <span>Explore the realm in 3D</span><span class="sz">relief</span>
     </a>
+    <a class="dl" href="downloads/IslesofDarkness.gpkg" download>
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 1.5v8.2M4.6 6.6 8 10l3.4-3.4M2.5 12.2v2.3h11v-2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Download the GIS data</span><span class="sz">.gpkg · 5.8 MB</span>
+    </a>
+    <p class="dlnote">One file, no unzipping: drag it into QGIS and every layer arrives styled. The full project is stored inside it too.</p>
+    <p class="dlmore"><a href="downloads/IslesOfDarkness_map.png" download>Map image (PNG)</a> · <a href="downloads/IslesMap_QGIS.zip" download>QGIS project (.zip)</a></p>
     <p>Click a territory or sea for its record. <span class="scale" id="scale"></span></p>
   </footer>
 </aside>
@@ -582,6 +592,9 @@ function start(D) {
     b.setAttribute("aria-expanded", String(!closed)); b.title = closed ? "Show layers" : "Hide layers";
   }
   $("#collapse").addEventListener("click", () => collapse());
+  const sib = document.querySelector('a.dl[href="3d/"]');
+  if (sib) fetch("3d/index.html", { method: "HEAD" }).then((r) => { if (!r.ok) throw 0; }).catch(() => {
+    sib.href = "https://claude.ai/artifact/SYCCM3L1tWhEvBNraxrbsE"; sib.target = "_blank"; sib.rel = "noopener"; });
 }
 })();
 </script>
