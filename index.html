@@ -144,7 +144,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
     <h2 class="gis-h">GIS data</h2>
     <div class="gis">
       <a class="dl" href="downloads/IslesofDarkness.gpkg" download title="One GeoPackage: drag into QGIS and every layer arrives styled">
-        <b><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5v8.2M4.6 6.6 8 10l3.4-3.4M2.5 12.2v2.3h11v-2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Lite version</b><span class="sz">.gpkg · 4.3 MB</span>
+        <b><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5v8.2M4.6 6.6 8 10l3.4-3.4M2.5 12.2v2.3h11v-2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Lite version</b><span class="sz">.gpkg · 4.5 MB</span>
       </a>
       <a class="dl" href="downloads/IslesMap_QGIS.zip" download title="The complete QGIS project with its GeoPackage and a readme">
         <b><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5v8.2M4.6 6.6 8 10l3.4-3.4M2.5 12.2v2.3h11v-2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Full data</b><span class="sz">QGIS project · 5.5 MB</span>
@@ -185,7 +185,7 @@ const TERRAIN = [
   { v: "Sea", fill: "#a7cadf", line: ["#4a4238", 0.3] },
   { v: "Dark Sea", fill: "#5986a7", line: ["#4a4238", 0.3] },
   { v: "Snowy Mountains ", label: "Snowy Mountains", fill: "#e3e6e9", line: ["#4a4238", 0.3] },
-  { v: "Literally Haunted", label: "Haunted", fill: "#000000", line: ["#4a4238", 0.3] }
+  { v: "Literally Haunted", label: "Ghost-Infested", fill: "#000000", line: ["#4a4238", 0.3] }
 ];
 // Clans (ClansEditable.gpkg) — two stacked outlines, symbol opacity 50%
 const CLANS = {
@@ -205,14 +205,15 @@ const OCEAN = [
   { v: "Sea", fill: "#a7cadf", edge: true },
   { v: "Dark Ocean", fill: "#3e6786", edge: true }
 ];
-// Label scale ranges from the project (1:35,000 and 1:50,000) → web zoom
+// Label scale ranges from the project (1:35,000, 1:40,000 and 1:50,000) → web zoom
 // metres per CSS px at zoom z = 78271.517 / 2^z ; scale = m/px ÷ (0.0254 m / 96 px)
 const zAt = (scale) => Math.log2(78271.517 * 96 / 0.0254 / scale);
-const Z_TERR = zAt(35000), Z_OCEAN = zAt(50000);
+const Z_TERR = zAt(35000), Z_OCEAN = zAt(50000), Z_CASTLE = zAt(40000);
 const LABEL = {
   region:    { color: "#ffffff", buffer: "#000000", show: (z) => z < Z_TERR },
   territory: { color: "#ffffff", buffer: "#000000", show: (z) => z >= Z_TERR },
-  ocean:     { color: "#0000ff", buffer: "#ffffff", show: (z) => z >= Z_OCEAN }
+  ocean:     { color: "#0000ff", buffer: "#ffffff", show: (z) => z >= Z_OCEAN },
+  castle:    { color: "#8f00ff", buffer: "#ffffff", show: (z) => z >= Z_CASTLE }   // Castles layer: violet, from 1:40,000 in
 };
 const FONT_PX = 10 * 96 / 72;   // 10 pt
 const BUFFER_PX = 1 * MM;       // 1 mm
@@ -414,12 +415,12 @@ function start(D) {
   });
 
   // ---------------- Labels (QGIS label engine stand-in: centroid placement, collision by priority) -----
-  let labelVis = { region: true, territory: true, ocean: true };
+  let labelVis = { region: true, territory: true, ocean: true, castle: true };
   function setupLabels(map, D) {
     const canvas = document.createElement("canvas"); canvas.id = "labels";
     map.getCanvasContainer().appendChild(canvas);
     const ctx = canvas.getContext("2d");
-    const order = { region: 0, ocean: 1, territory: 2 };
+    const order = { region: 0, ocean: 1, territory: 2, castle: 3 };
     const L = D.labels.features.map((f) => ({ ...f.properties, ll: f.geometry.coordinates })).sort((a, b) => order[a.k] - order[b.k] || b.a - a.a);
     const fam = getComputedStyle(document.body).getPropertyValue("--f-serif");
     function draw() {
@@ -434,11 +435,16 @@ function start(D) {
         const p = map.project(l.ll);
         if (p.x < -150 || p.y < -30 || p.x > w + 150 || p.y > h + 30) continue;
         const tw = ctx.measureText(l.t).width, bh = FONT_PX * 1.15, pad = BUFFER_PX * 0.6;
-        const box = [p.x - tw / 2 - pad, p.y - bh / 2 - pad, p.x + tw / 2 + pad, p.y + bh / 2 + pad];
-        if (boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
-        boxes.push(box);
-        ctx.lineWidth = BUFFER_PX * 2; ctx.strokeStyle = st.buffer; ctx.strokeText(l.t, p.x, p.y);
-        ctx.fillStyle = st.color; ctx.fillText(l.t, p.x, p.y);
+        // castles sit "around point" like QGIS: above, below, then beside their territory's name
+        const dy = bh + 2 * pad + 1, cand = l.k === "castle" ? [[0, -dy], [0, dy], [tw * 0.6 + 24, -dy], [-tw * 0.6 - 24, -dy], [tw * 0.6 + 24, dy], [-tw * 0.6 - 24, dy], [0, -2 * dy], [0, 2 * dy]] : [[0, 0]];
+        let at = null;
+        for (const [dx, dy] of cand) {
+          const x = p.x + dx, y = p.y + dy, box = [x - tw / 2 - pad, y - bh / 2 - pad, x + tw / 2 + pad, y + bh / 2 + pad];
+          if (!boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) { boxes.push(box); at = [x, y]; break; }
+        }
+        if (!at) continue;
+        ctx.lineWidth = BUFFER_PX * 2; ctx.strokeStyle = st.buffer; ctx.strokeText(l.t, ...at);
+        ctx.fillStyle = st.color; ctx.fillText(l.t, ...at);
       }
     }
     map.on("render", draw);
@@ -479,6 +485,7 @@ function start(D) {
     };
 
     const LAYERS = [
+      { name: "Castles", ids: [], labels: "castle", note: "labels" },
       { name: "Rivers", ids: ["rivers"], icon: swatch("line", { c: "#0074ff", w: 1.5 * MM }), count: D.rivers.features.length },
       { name: "Impassable", ids: ["impassable"], icon: swatch("line", { c: "#db1e2a", w: MM, dash: [0.66 * MM, 2 * MM] }), count: D.impassable.features.length },
       { name: "Clans", ids: ["clan-outer", "clan-inner"], open: true,
