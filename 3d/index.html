@@ -277,8 +277,21 @@ function start(meta, himg, idimg, limg, aimg) {
       else if (style !== "bylong") put("hip", x, z, Math.max(w, d) * 1.3, hh * 0.75, Math.max(w, d) * 1.3, rot, pick(pal.roof), hh);
     }
   }
-  function castle(cx, cz, style, house, big) {
-    const pal = PALETTE[style], s = big ? 1.5 : 1.1;
+  function castle(cx, cz, style, house, big, name) {
+    const s = big ? 1.5 : 1.1;
+    // seat the keep on the rock: on small sharp islands the mesh sits lower than the true ground, so a stone
+    // plinth runs from the lowest ground around the footprint up to the keep's floor
+    const ring = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => hW(cx + Math.cos(k * .785) * 55 * s, cz + Math.sin(k * .785) * 55 * s));
+    const gC = hW(cx, cz), lo = surf(Math.max(Math.min(...ring, gC), 0)) - 30, floor = surf(Math.max(gC, 0));
+    if (gC >= 2 && floor - lo > 34) put("cyl", cx, cz, 120 * s, floor - lo + 4, 120 * s, 0, 0x4a453f, 0, { abs: lo });
+    if (name === "Blackfire Prison") {                              // Blackfire Prison: a black basalt gaol on its volcano
+      put("box", cx, cz, 110 * s, 40 * s, 110 * s, 0, 0x1c1a19); put("box", cx, cz, 80 * s, 40 * s, 80 * s, 0.4, 0x232020, 40 * s);
+      put("box", cx, cz, 46 * s, 46 * s, 46 * s, 0.8, 0x161414, 80 * s);
+      for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) put("box", cx + dx * 50 * s, cz + dz * 50 * s, 18 * s, 70 * s, 18 * s, 0, 0x121010);
+      windowLights(cx, cz, 60 * s, 14, [1.0, 0.3, 0.1], 22, 20, 100);
+      return;
+    }
+    const pal = PALETTE[style];
     if (style === "european") {
       put("box", cx, cz, 70 * s, 90 * s, 70 * s, 0, pick(pal.wall));
       for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { put("cyl", cx + dx * 55 * s, cz + dz * 55 * s, 30 * s, 120 * s, 30 * s, 0, pick(pal.wall)); put("cone", cx + dx * 55 * s, cz + dz * 55 * s, 36 * s, 40 * s, 36 * s, 0, 0x5a3a2a, 120 * s); }
@@ -435,11 +448,13 @@ function start(meta, himg, idimg, limg, aimg) {
     if (s.k === "lighthouse") { if (s.name === "Carry On") lighthouse(cx, cz, "Giantwatch", 14); else lighthouse(cx, cz, s.name); continue; }
     if (s.k === "metropolis") { metropolis(cx, cz); glows.push({ x: cx, y: surf(hW(cx, cz)) + 120, z: cz, size: 2000, col: FIRE, k: "city" }); townLabels.push({ x: cx, z: cz, t: "Bylong" }); continue; }
     const n = { large: 120, medium: 70, small: 30, port: 26 }[s.k] || 0, rad = { large: 520, medium: 400, small: 260, port: 240 }[s.k] || 200;
-    if (n && s.dev === "vale_core" && (s.k === "large" || s.k === "medium")) planned(cx, cz, rad, n);
-    else if (n) cluster(cx, cz, rad, n, st);
+    const tcx = s.abbey ? cx - 200 : cx, tcz = s.abbey ? cz + 160 : cz;        // the abbey's port town sits a little apart
+    if (n && s.dev === "vale_core" && (s.k === "large" || s.k === "medium")) planned(tcx, tcz, rad, n);
+    else if (n) cluster(tcx, tcz, rad, n, st);
     if (s.castle) {
       const big = s.k === "large" || s.k === "medium";
-      castle(cx + (n ? 180 : 0), cz - (n ? 140 : 0), st, s.house, big);
+      const off = s.abbey ? 0 : 1;                                  // Yyrodh Abbey stands exactly in its pocket of darkness
+      castle(cx + (n ? 180 * off : 0), cz - (n ? 140 * off : 0), st, s.house, big, s.castle);
       if (st === "outer") { barracks(cx, cz); windowLights(cx + 180, cz - 140, 230, 26, [1.0, 0.36, 0.12], 36); }
       windowLights(cx, cz, rad + 120, big ? 90 : 40, FIRE, big ? 30 : 26);
       glows.push({ x: cx, y: surf(hW(cx, cz)) + 90, z: cz, size: big ? 1300 : 900, col: FIRE, k: "fire" });

@@ -129,7 +129,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
     </a>
     <a class="dl" href="downloads/IslesofDarkness.gpkg" download>
       <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 1.5v8.2M4.6 6.6 8 10l3.4-3.4M2.5 12.2v2.3h11v-2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>Download the GIS data</span><span class="sz">.gpkg · 5.8 MB</span>
+      <span>Download the GIS data</span><span class="sz">.gpkg · 4.3 MB</span>
     </a>
     <p class="dlnote">One file, no unzipping: drag it into QGIS and every layer arrives styled. The full project is stored inside it too.</p>
     <p class="dlmore"><a href="downloads/IslesOfDarkness_map.png" download>Map image (PNG)</a> · <a href="downloads/IslesMap_QGIS.zip" download>QGIS project (.zip)</a></p>
@@ -260,7 +260,7 @@ function swatch(kind, def, w = 26, h = 16) {
   } else if (kind === "ocean") {
     x.fillStyle = def.fill; x.fillRect(...r);
     x.strokeStyle = "#40637c"; x.lineWidth = 0.4 * MM; x.strokeRect(...r);
-    if (def.edge) { x.strokeStyle = "#0000ff"; x.lineWidth = 1; x.strokeRect(...r); }
+    if (def.edge) { x.strokeStyle = "#000000"; x.lineWidth = 1; x.strokeRect(...r); }
   } else if (kind === "line") {
     x.strokeStyle = def.c; x.lineWidth = def.w; x.lineCap = "round";
     if (def.dash) x.setLineDash(def.dash);
@@ -340,7 +340,7 @@ function start(D) {
       "fill-color": ["match", ["coalesce", ["get", "Mapttitle"], ""], ...OCEAN.flatMap((o) => [o.v, o.fill]), "#e1b6ff"] } });
     map.addLayer({ id: "ocean-line", type: "line", source: "ocean", layout: { "line-join": "round" }, paint: { "line-color": "#40637c", "line-width": 0.4 * MM } });
     map.addLayer({ id: "ocean-edge", type: "line", source: "ocean", filter: ["in", ["get", "Mapttitle"], ["literal", ["Sea", "Dark Ocean"]]],
-      layout: { "line-join": "bevel" }, paint: { "line-color": "#0000ff", "line-width": 0.26 * MM } });
+      layout: { "line-join": "bevel" }, paint: { "line-color": "#000000", "line-width": 0.26 * MM } });
 
     // Territories
     const VOLC = "It's a Hecking Volcano";
