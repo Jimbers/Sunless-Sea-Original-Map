@@ -169,7 +169,7 @@ const PR = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
 // Territories — categorized on TerrainType (legend labels as in the project)
 const TERRAIN = [
   { v: "Coast", fill: "#e7c87d", hatch: { a: 135, d: 2, w: 0.9, c: "#a7cadf" }, line: ["#e7c87d", 0.46] },
-  { v: "It's a Hecking Volcano", label: "Low Light Sources", grad: ["#c25e00", "#ffa300", "linear"], line: ["#803e00", 0.26] },
+  { v: "It's a Hecking Volcano", label: "Volcanic", grad: ["#c25e00", "#ffa300", "linear"], line: ["#803e00", 0.26] },
   { v: "Swamp", fill: "#83cb2d", line: ["#4a4238", 0.3] },
   { v: "Valley", hatch: { a: 45, d: 0.8, w: 0.55, c: "#1c9a1c" }, line: ["#1c9a1c", 0.46] },
   { v: "Mountains", hatch: { a: 135, d: 0.8, w: 0.55, c: "#001a1c" }, line: ["#001a1c", 0.55] },
@@ -185,7 +185,7 @@ const TERRAIN = [
   { v: "Sea", fill: "#a7cadf", line: ["#4a4238", 0.3] },
   { v: "Dark Sea", fill: "#5986a7", line: ["#4a4238", 0.3] },
   { v: "Snowy Mountains ", label: "Snowy Mountains", fill: "#e3e6e9", line: ["#4a4238", 0.3] },
-  { v: "Literally Haunted", fill: "#000000", line: ["#4a4238", 0.3] }
+  { v: "Literally Haunted", label: "Haunted", fill: "#000000", line: ["#4a4238", 0.3] }
 ];
 // Clans (ClansEditable.gpkg) — two stacked outlines, symbol opacity 50%
 const CLANS = {
