@@ -1,0 +1,735 @@
+<title>Isles of Darkness Relief</title>
+<meta name="description" content="Interactive 3D relief of the Isles of Darkness, a sunless realm lit by its Candle Towers, castle fires and village hearths.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+/* Layout: full-bleed WebGL scene; one floating control panel (top-left), record card (bottom-left), labels as an HTML overlay.
+   A single dark look by design: the realm has no sun. */
+:root {
+  --void: #04060a;
+  --panel: rgba(14, 17, 23, 0.9);
+  --ink: #ece4d2;
+  --ink-dim: #9d978a;
+  --flame: #f2c66d;
+  --rule: rgba(242, 198, 109, 0.2);
+  --f-serif: "EB Garamond", Garamond, "Iowan Old Style", Georgia, serif;
+  --f-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--void); color: var(--ink); font-family: var(--f-ui); font-size: 14px; overflow: hidden; }
+[hidden] { display: none !important; }
+#scene { position: absolute; inset: 0; }
+#scene canvas { display: block; outline: none; }
+#labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lbl { position: absolute; left: 0; top: 0; white-space: nowrap; font-family: var(--f-serif); color: #efe3c4; will-change: transform;
+  text-shadow: 0 0 4px #000, 0 0 10px #000, 0 0 2px #000; }
+.lbl.region { font-size: 15px; letter-spacing: .04em; }
+.lbl.tower { font-size: 14px; font-style: italic; color: var(--flame); }
+.lbl.town { font-size: 12px; color: #d9cdb2; }
+.lbl.mark { font-size: 12px; font-style: italic; color: #b9c4cf; }
+#loading { position: absolute; inset: 0; display: grid; place-items: center; font: italic 1.25rem var(--f-serif); color: var(--ink-dim); text-align: center; padding: 0 24px; }
+
+.panel { position: absolute; z-index: 2; top: calc(16px + env(safe-area-inset-top, 0px)); left: 16px; width: 292px; max-width: calc(100vw - 32px);
+  max-height: calc(100% - 32px); overflow: auto;
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; box-shadow: 0 14px 40px rgba(0,0,0,.6); backdrop-filter: blur(6px); }
+.panel header { padding: 14px 16px 10px; border-bottom: 1px solid var(--rule); }
+.panel h1 { margin: 0; font: 500 1.6rem/1.05 var(--f-serif); color: var(--flame); text-wrap: balance; }
+.panel .sub { margin: 4px 0 0; font: italic .98rem/1.3 var(--f-serif); color: var(--ink-dim); }
+.controls { padding: 8px 16px 4px; display: grid; }
+.sw { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; }
+.sw span { font: 1.05rem var(--f-serif); }
+.sw small { display: block; font: .74rem var(--f-ui); color: var(--ink-dim); margin-top: 1px; }
+.toggle { appearance: none; width: 38px; height: 21px; border-radius: 11px; background: #2b313b; border: 1px solid var(--rule); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: var(--ink-dim); transition: transform .2s, background .2s; }
+.toggle:checked { background: #6b5422; }
+.toggle:checked::after { transform: translateX(17px); background: var(--flame); }
+.toggle:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
+.key { list-style: none; margin: 0; padding: 8px 16px 10px; border-top: 1px solid var(--rule); display: grid; gap: 5px; font-size: .84rem; }
+.key li { display: grid; grid-template-columns: 14px 1fr auto; gap: 9px; align-items: center; }
+.key i { width: 10px; height: 10px; border-radius: 50%; justify-self: center; }
+.key i.banner { width: 10px; height: 15px; border-radius: 1px; border: 2.5px solid; box-sizing: border-box; box-shadow: 0 0 0 1px rgba(236,228,210,.25); }
+.key .khead { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); }
+.key .ct { color: var(--ink-dim); font-variant-numeric: tabular-nums; font-size: .74rem; }
+.panel footer { border-top: 1px solid var(--rule); padding: 9px 16px 11px; display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { appearance: none; border: 1px solid var(--rule); background: transparent; color: var(--flame); border-radius: 3px; padding: 6px 10px; font: 1rem var(--f-serif); cursor: pointer; text-decoration: none; }
+.btn:hover { background: rgba(242,198,109,.1); }
+.hint { margin: 0; width: 100%; color: var(--ink-dim); font-size: .76rem; line-height: 1.4; }
+
+.card { position: absolute; z-index: 2; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: 330px; max-width: calc(100vw - 32px);
+  max-height: 46vh; overflow: auto;
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 13px 16px 12px; box-shadow: 0 14px 40px rgba(0,0,0,.6); }
+.card h2 { margin: 0 22px 1px 0; font: 500 1.45rem/1.1 var(--f-serif); color: var(--flame); }
+.card .where { margin: 0 0 9px; font: italic 1rem var(--f-serif); color: var(--ink-dim); }
+.card dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: .86rem; }
+.card dt { color: var(--ink-dim); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; padding-top: 2px; }
+.card dd { margin: 0; min-width: 0; font-variant-numeric: tabular-nums; line-height: 1.35; }
+.card .x { position: absolute; top: 8px; right: 8px; appearance: none; border: 0; background: none; color: var(--ink-dim); font-size: 20px; cursor: pointer; line-height: 1; padding: 2px 6px; }
+.card .x:hover { color: var(--flame); }
+.meter { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: #252a33; vertical-align: middle; margin-right: 6px; overflow: hidden; }
+.meter b { display: block; height: 100%; background: linear-gradient(90deg, #6b5422, var(--flame)); }
+
+@media (max-width: 560px) {
+  .panel { right: 16px; width: auto; }
+  .panel h1 { font-size: 1.3rem; }
+  .key, .hint { display: none; }
+  .card { right: 16px; width: auto; }
+}
+</style>
+
+<div id="scene"></div>
+<div id="labels"></div>
+<div id="loading">Kindling the Candle Towers…</div>
+
+<aside class="panel" aria-label="Relief controls">
+  <header>
+    <h1>The Isles of Darkness</h1>
+    <p class="sub">A sunless realm lit by four Candle Towers. About 1,000 km across; relief exaggerated <span id="exag">8</span>×.</p>
+  </header>
+  <div class="controls">
+    <label class="sw" for="sun"><div><span>Sun</span><small>Light the whole realm to read the land</small></div><input class="toggle" type="checkbox" id="sun"></label>
+    <label class="sw" for="lbls"><div><span>Names</span><small>Regions, towers, castles and landmarks</small></div><input class="toggle" type="checkbox" id="lbls" checked></label>
+  </div>
+  <ul class="key" id="key"></ul>
+  <footer>
+    <button type="button" class="btn" id="reset">Reset view</button>
+    <a class="btn" href="../" id="back">Flat map</a>
+    <p class="hint">Drag to pan, right-drag to orbit, scroll to zoom. Click the land for its record.</p>
+  </footer>
+</aside>
+
+<div class="card" id="card" hidden aria-live="polite">
+  <button type="button" class="x" id="cardx" aria-label="Close">×</button>
+  <div id="cardbody"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const CANDLE = [1.0, 0.82, 0.52], FIRE = [1.0, 0.52, 0.2], LAVA = [1.0, 0.28, 0.08], ELECTRIC = [1.0, 0.9, 0.7], HEARTH = [1.0, 0.6, 0.28];
+// outer colours of each house's two-stroke boundary in the QGIS symbology (inner colours are HOUSE_COL)
+const HOUSE_EDGE = { "Outer Blood": "#002673", "Vale": "#002673", "Steelheart": "#000000", "Werebrand": "#ffffff", "Longservant": "#a87000",
+  "Giantsbane": "#ff00c5", "Yyrodh Abbey": "#000000", "Sel Serro Abbey": "#f2d22e" };
+const HOUSE_COL = { "Outer Blood": 0xa80000, "Vale": 0x00734c, "Steelheart": 0xe60000, "Werebrand": 0xe69800, "Longservant": 0xffffff,
+  "Giantsbane": 0x4ce600, "Yyrodh Abbey": 0x101010, "Sel Serro Abbey": 0xf2d22e, "Foundling": 0x000000, "Reedland": 0xffffff, "Northern Court": 0xffebbe };
+
+const loadImage = (url) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(url)); i.src = url; });
+function pixels(img) {
+  const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+  const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(img, 0, 0);
+  return x.getImageData(0, 0, img.width, img.height).data;
+}
+Promise.all([fetch("data/meta.json").then((r) => { if (!r.ok) throw new Error("meta.json " + r.status); return r.json(); }),
+  loadImage("data/height.png"), loadImage("data/ids.png"), loadImage("data/light.png"), loadImage("data/albedo.jpg")])
+  .then((a) => start(...a))
+  .catch((e) => { $("#loading").textContent = "The relief could not be loaded (" + e.message + "). Serve the folder over http rather than opening the file directly."; });
+
+function start(meta, himg, idimg, limg, aimg) {
+  const [W, H] = meta.extent_m, [NX, NY] = meta.grid, VF = meta.vf, RS = meta.realScale;
+  const hp = pixels(himg), HM = new Float32Array(NX * NY);
+  for (let i = 0; i < NX * NY; i++) HM[i] = (hp[i * 4] * 256 + hp[i * 4 + 1]) / 10 - 1000;
+  const idp = pixels(idimg), lp = pixels(limg);
+  const hAt = (u, v) => {
+    const x = Math.min(NX - 1.001, Math.max(0, u * (NX - 1))), y = Math.min(NY - 1.001, Math.max(0, v * (NY - 1)));
+    const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0, i = y0 * NX + x0;
+    return (HM[i] * (1 - fx) + HM[i + 1] * fx) * (1 - fy) + (HM[i + NX] * (1 - fx) + HM[i + NX + 1] * fx) * fy;
+  };
+  const hW = (x, z) => hAt(x / W + 0.5, z / H + 0.5);            // real metres at world x,z
+  const surf = (h) => h * VF;
+  const toWorld = (uv) => [(uv[0] - 0.5) * W, (uv[1] - 0.5) * H];
+
+  // ---- renderer ----
+  const host = $("#scene");
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setSize(host.clientWidth, host.clientHeight);
+  host.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, host.clientWidth / host.clientHeight, 20, 400000);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, maxPolarAngle: 1.42, minDistance: 500, maxDistance: 75000, screenSpacePanning: false });
+  controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+  $("#exag").textContent = meta.exag;
+
+  const uniforms = {
+    uTime: { value: 0 }, uSun: { value: 0 }, uSunDir: { value: new THREE.Vector3(-0.45, 0.75, -0.48).normalize() },
+    uLight: { value: null }, uAlbedo: { value: null }, uFogCol: { value: new THREE.Color(0x04060a) }, uFogDen: { value: 0.000028 },
+    uExt: { value: new THREE.Vector2(W, H) },
+    uCandle: { value: new THREE.Vector3(...CANDLE) }, uCandleK: { value: 1 }, uFire: { value: new THREE.Vector3(...FIRE) }, uLava: { value: new THREE.Vector3(...LAVA) }
+  };
+  const tex = (img) => { const t = new THREE.Texture(img); t.needsUpdate = true; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
+  uniforms.uAlbedo.value = tex(aimg); uniforms.uLight.value = tex(limg);
+
+  const COMMON = `
+    uniform sampler2D uLight; uniform float uTime; uniform float uSun; uniform vec3 uSunDir;
+    uniform vec3 uFogCol; uniform float uFogDen; uniform vec2 uExt;
+    uniform vec3 uCandle; uniform vec3 uFire; uniform vec3 uLava; uniform float uCandleK;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    vec3 realmLight(vec3 wp) {
+      vec2 uv = vec2(wp.x / uExt.x + 0.5, 0.5 - wp.z / uExt.y);
+      if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec3(0.0);
+      vec3 l = texture2D(uLight, uv).rgb; l = l * l * 2.0;
+      float cell = hash(floor(wp.xz / 900.0));
+      float fl = 0.86 + 0.08 * sin(uTime * 7.3 + cell * 40.0) + 0.06 * sin(uTime * 13.1 + cell * 17.0);
+      float can = 0.95 + 0.05 * sin(uTime * 1.7 + cell * 3.0);
+      float lav = 0.8 + 0.2 * sin(uTime * 0.9 + cell * 6.0);
+      return l.r * uCandle * can * 0.7 * uCandleK + l.g * uFire * fl + l.b * uLava * lav;     // Candle Towers 30% dimmer
+    }
+    vec3 finish(vec3 c, float dist) {
+      c = c / (1.0 + c * 0.85) * 1.25;
+      c = pow(max(c, 0.0), vec3(1.0 / 2.2));
+      return mix(c, uFogCol, clamp(1.0 - exp(-dist * uFogDen), 0.0, 1.0));
+    }`;
+
+  // ---- terrain ----
+  const SX = 2, segX = Math.floor((NX - 1) / SX), segY = Math.floor((NY - 1) / SX);
+  const geo = new THREE.PlaneGeometry(W, H, segX, segY); geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position, uvA = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) pos.setY(i, surf(hAt(uvA.getX(i), 1 - uvA.getY(i))));
+  geo.computeVertexNormals();
+  const terrain = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: `varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+      void main() { vUv = uv; vN = normal; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: COMMON + `uniform sampler2D uAlbedo; varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+      void main() {
+        vec3 a = pow(texture2D(uAlbedo, vUv).rgb, vec3(2.2));
+        vec3 n = normalize(vN);
+        vec3 sun = uSun * (vec3(0.18, 0.2, 0.24) + vec3(1.0, 0.96, 0.9) * 1.15 * max(dot(n, uSunDir), 0.0));
+        vec3 c = a * (vec3(0.010, 0.013, 0.02) + realmLight(vW) * 1.25 + sun);
+        vec3 lv = texture2D(uLight, vUv).rgb; c += uLava * pow(lv.b, 6.0) * 1.6 * (0.8 + 0.2 * sin(uTime * 1.3));
+        gl_FragColor = vec4(finish(c, distance(cameraPosition, vW)), 1.0);
+      }`
+  }));
+  scene.add(terrain);
+
+  // ---- water ----
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(W * 8, H * 8, 1, 1).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: `varying vec3 vW; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: COMMON + `varying vec3 vW;
+      float n2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+      void main() {
+        vec3 L = realmLight(vW);
+        float r = n2(vW.xz / 900.0 + vec2(uTime * 0.01, uTime * 0.006));
+        float glint = 0.0;
+        vec3 c = vec3(0.003, 0.007, 0.013) + L * vec3(0.55, 0.62, 0.75) * (0.05 + 0.03 * r);
+        vec3 V = normalize(cameraPosition - vW);
+        c += uSun * (vec3(0.05, 0.13, 0.2) + vec3(0.5, 0.55, 0.6) * pow(1.0 - max(V.y, 0.0), 4.0) * 0.4 + vec3(0.9) * glint * 0.03);
+        gl_FragColor = vec4(finish(c, distance(cameraPosition, vW)), 1.0);
+      }`
+  }));
+  water.position.y = 0.6; scene.add(water);
+
+  // ---- instanced structures, lit by the same light field ----
+  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const rnd = mulberry(1234), pick = (arr) => arr[(rnd() * arr.length) | 0];
+  const instMat = () => new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: `varying vec3 vC; varying vec3 vW; varying vec3 vN;
+      void main() { vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0); vW = w.xyz;
+        vN = normalize(mat3(modelMatrix * instanceMatrix) * normal); vC = instanceColor;
+        gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: COMMON + `varying vec3 vC; varying vec3 vW; varying vec3 vN;
+      void main() { vec3 a = pow(vC, vec3(2.2)); vec3 n = normalize(vN);
+        vec3 L = realmLight(vW) * (0.55 + 0.45 * max(n.y, 0.3));
+        vec3 sun = uSun * (vec3(0.2) + vec3(1.0, 0.96, 0.9) * max(dot(n, uSunDir), 0.0));
+        gl_FragColor = vec4(finish(a * (vec3(0.012) + L * 1.4 + sun), distance(cameraPosition, vW)), 1.0); }`
+  });
+  const GEOS = {
+    box: new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
+    hip: new THREE.ConeGeometry(0.78, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0),
+    gable: (() => { const g = new THREE.CylinderGeometry(0.62, 0.62, 1, 3, 1).rotateZ(Math.PI / 2).rotateX(Math.PI / 6); g.translate(0, 0.3, 0); return g; })(),
+    cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 10).translate(0, 0.5, 0),
+    cone: new THREE.ConeGeometry(0.5, 1, 7).translate(0, 0.5, 0),
+    pyr: new THREE.ConeGeometry(0.72, 1, 4).rotateY(Math.PI / 4).translate(0, 0.5, 0),
+    rib: new THREE.TorusGeometry(0.5, 0.05, 5, 14, Math.PI),
+    whale: new THREE.SphereGeometry(0.5, 14, 8),
+    ico: new THREE.IcosahedronGeometry(0.5, 0).translate(0, 0.5, 0),
+  };
+  const lists = Object.fromEntries(Object.keys(GEOS).map((k) => [k, []]));
+  // put(kind, x, z, w, h, d, rotY, color, yOff, {ry, rx, rz, abs, water})
+  function put(kind, x, z, w, hh, d, rot, color, yOff = 0, o = {}) {
+    const g = hW(x, z);
+    if (!o.water && g < 2) return false;
+    const y = (o.abs !== undefined ? o.abs : surf(Math.max(g, 0))) + yOff;
+    lists[kind].push([x, y, z, w, hh, d, rot, color, o.rx || 0, o.rz || 0]); return true;
+  }
+  const PALETTE = {
+    eastern: { wall: [0xd8cbb0, 0xc9b896, 0xe2d6bc], roof: [0x3c3f46, 0x4a3f3a, 0x2f3a3d, 0x5a3b30] },
+    european: { wall: [0xbfb3a0, 0xa89a84, 0xcfc4b0], roof: [0x7a3b26, 0x5a3a2a, 0x8a4a2e] },
+    outer: { wall: [0x4d4a4a, 0x5a5552, 0x403c3c], roof: [0x2a2525, 0x3a2222] },
+    bylong: { wall: [0xe8e2d4, 0xd9dde0, 0xc8d2d8, 0xf0ece2], roof: [0x5c6b78] }
+  };
+  function cluster(cx, cz, radius, n, style, k = 1) {
+    const pal = PALETTE[style], ang = rnd() * Math.PI;
+    for (let i = 0; i < n; i++) {
+      const r = radius * Math.sqrt(rnd()), a = rnd() * Math.PI * 2, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      const w = (18 + rnd() * 16) * k, d = (14 + rnd() * 12) * k, hh = (10 + rnd() * 8) * k, rot = ang + (rnd() < .7 ? 0 : Math.PI / 2);
+      if (!put("box", x, z, w, hh, d, rot, pick(pal.wall))) continue;
+      if (style === "european") put("gable", x, z, w * 1.05, hh * 1.1, d * 1.05, rot, pick(pal.roof), hh);
+      else if (style !== "bylong") put("hip", x, z, Math.max(w, d) * 1.3, hh * 0.75, Math.max(w, d) * 1.3, rot, pick(pal.roof), hh);
+    }
+  }
+  function castle(cx, cz, style, house, big) {
+    const pal = PALETTE[style], s = big ? 1.5 : 1.1;
+    if (style === "european") {
+      put("box", cx, cz, 70 * s, 90 * s, 70 * s, 0, pick(pal.wall));
+      for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { put("cyl", cx + dx * 55 * s, cz + dz * 55 * s, 30 * s, 120 * s, 30 * s, 0, pick(pal.wall)); put("cone", cx + dx * 55 * s, cz + dz * 55 * s, 36 * s, 40 * s, 36 * s, 0, 0x5a3a2a, 120 * s); }
+    } else {
+      let w = 90 * s, y = 0;
+      for (let t = 0; t < 4; t++) {                                   // tiered keep, a hipped roof at every level
+        put("box", cx, cz, w, 34 * s, w, Math.PI / 4, t ? 0xe9e0cc : 0x8a8478, y);
+        put("hip", cx, cz, w * 1.45, 18 * s, w * 1.45, Math.PI / 4, style === "outer" ? 0x2a2525 : 0x2f3540, y + 34 * s);
+        y += 40 * s; w *= 0.74;
+      }
+    }
+    const R = (style === "outer" ? 210 : 160) * s, segs = style === "outer" ? 22 : 16;
+    for (let k = 0; k < segs; k++) {
+      const a = k / segs * Math.PI * 2, x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R;
+      put("box", x, z, 2 * Math.PI * R / segs * 1.02, (style === "outer" ? 42 : 26) * s, 14 * s, -a + Math.PI / 2, style === "outer" ? 0x3b3838 : 0x9a9182);
+      if (k % (style === "outer" ? 2 : 4) === 0) put("cyl", x, z, 34 * s, (style === "outer" ? 80 : 55) * s, 34 * s, 0, style === "outer" ? 0x2e2b2b : 0x8a8274);
+    }
+    if (house && HOUSE_COL[house] !== undefined) put("box", cx, cz, 6, 60 * s, 30 * s, 0, HOUSE_COL[house], (style === "european" ? 125 : 165) * s);
+  }
+  function barracks(cx, cz) {
+    const rot = rnd() * Math.PI;
+    for (let i = -3; i <= 3; i++) for (let j = -1; j <= 1; j++) {
+      const x = cx + Math.cos(rot) * i * 60 - Math.sin(rot) * j * 34, z = cz + Math.sin(rot) * i * 60 + Math.cos(rot) * j * 34 + 320;
+      put("box", x, z, 48, 14, 22, rot, 0x47423f); put("gable", x, z, 50, 10, 24, rot, 0x2b2626, 14);
+    }
+  }
+  const lightPts = [];
+  function windowLights(cx, cz, radius, n, col, size, minH = 8, maxH = 38) {
+    for (let i = 0; i < n; i++) {
+      const r = radius * Math.sqrt(rnd()), a = rnd() * Math.PI * 2, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      const g = hW(x, z); if (g < 2) continue;
+      lightPts.push([x, surf(g) + minH + rnd() * (maxH - minH), z, col, size * (0.6 + rnd() * 0.8), rnd() * 100]);
+    }
+  }
+  const glows = [], towers = [], marks = [], beams = [];
+  const flatEnough = (x, z, r = 30) => {                      // keep buildings off cliff edges and steep ground
+    const a = [hW(x - r, z), hW(x + r, z), hW(x, z - r), hW(x, z + r), hW(x, z)];
+    return Math.max(...a) - Math.min(...a) < 45 && Math.min(...a) > 3;
+  };
+  const VENICE = { wall: [0xd9a35f, 0xd48a7a, 0xe8d8b8, 0xc9734f, 0xe3c48f, 0xbf8f6a], roof: [0x9a4a2e, 0xa8573a, 0x8c4027] };
+  function metropolis(cx, cz) {
+    // Bylong c.1500: a canal city of palazzi, campaniles and domed churches around a great piazza; lanterns, not bulbs
+    const step = 52, N = 26;
+    for (let i = -N; i <= N; i++) for (let j = -N; j <= N; j++) {
+      const d = Math.hypot(i, j) / N;
+      if (d > 1 || i % 4 === 0 || j % 5 === 0) continue;                      // canals and fondamenta between blocks
+      if (Math.abs(i) <= 2 && Math.abs(j) <= 3) continue;                       // the great piazza
+      if (rnd() > 0.95 - d * 0.3) continue;
+      const x = cx + i * step + (rnd() - .5) * 6, z = cz + j * step + (rnd() - .5) * 6;
+      if (!flatEnough(x, z)) continue;
+      const hh = 16 + rnd() * 16 + (1 - d) * 8, w = 40 + rnd() * 10, dd = 40 + rnd() * 10;
+      put("box", x, z, w, hh, dd, 0, pick(VENICE.wall));
+      put("hip", x, z, Math.max(w, dd) * 1.2, 7, Math.max(w, dd) * 1.2, Math.PI / 4, pick(VENICE.roof), hh);
+    }
+    // the great piazza: a long palace on one side, a campanile at its corner
+    put("box", cx - 130, cz, 60, 34, 300, 0, 0xeee3cf); put("hip", cx - 130, cz, 90, 10, 320, 0, 0xa8573a, 34);
+    put("box", cx + 110, cz - 150, 22, 150, 22, 0, 0xa0523a); put("pyr", cx + 110, cz - 150, 30, 34, 30, 0, 0x6f7a72, 150);
+    for (let k = 0; k < 9; k++) {                                             // campaniles across the city
+      const a = rnd() * Math.PI * 2, r = (0.25 + rnd() * 0.65) * N * step, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      if (!flatEnough(x, z)) continue;
+      put("box", x, z, 14, 90 + rnd() * 40, 14, 0, 0xa0523a); put("pyr", x, z, 20, 22, 20, 0, 0x8a4a34, 90 + 40);
+    }
+    for (let k = 0; k < 5; k++) {                                             // domed churches
+      const a = rnd() * Math.PI * 2, r = (k ? 0.3 + rnd() * 0.55 : 0.12) * N * step, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      if (!flatEnough(x, z, 50)) continue;
+      put("box", x, z, 80, 34, 110, rnd() * 3, 0xe6dccb);
+      put("cyl", x, z, 46, 22, 46, 0, 0xd8cfbf, 34); put("whale", x, z, 52, 52, 52, 0, 0x8d9497, 56);
+    }
+    windowLights(cx, cz, N * step, 1000, FIRE, 20, 4, 34);                     // lanterns and torches along the canals
+  }
+  // Vale's core towns: planned and vibrant — gridded streets, a market square, glazed and lacquered roofs
+  const VALE_ROOF = [0x3fb5a0, 0x2a8f86, 0x1f4d34, 0x2c5e3f, 0x6b4a2f, 0x52381f];   // aquamarines, dark greens, browns
+  function planned(cx, cz, rad, n) {
+    const step = 34, N = Math.round(rad / step), rot = rnd() * Math.PI / 2, co = Math.cos(rot), si = Math.sin(rot);
+    let placed = 0;
+    for (let i = -N; i <= N && placed < n * 1.6; i++) for (let j = -N; j <= N; j++) {
+      if (Math.hypot(i, j) > N || i % 3 === 0 || j % 4 === 0) continue;         // streets
+      if (Math.abs(i) <= 1 && Math.abs(j) <= 1) continue;                       // market square
+      const lx = i * step, lz = j * step, x = cx + lx * co - lz * si, z = cz + lx * si + lz * co;
+      if (!flatEnough(x, z, 20)) continue;
+      const hh = 12 + rnd() * 8;
+      if (!put("box", x, z, 26, hh, 22, rot, pick([0xf1ebdc, 0xe9e0cc, 0xf4efe4]))) continue;
+      put("hip", x, z, 34, 9, 30, rot, pick(VALE_ROOF), hh); placed++;
+    }
+    put("box", cx, cz, 30, 10, 30, rot, 0x8a7a66); put("hip", cx, cz, 44, 14, 44, rot, 0x1f4d34, 10);   // market pavilion
+    windowLights(cx, cz, rad, Math.round(n * 0.9), [1.0, 0.5, 0.25], 22, 6, 24);      // red paper lanterns
+  }
+  function candleTower(cx, cz, name) {
+    const base = surf(Math.max(hW(cx, cz), 2)), top = 1609 * VF;
+    put("cyl", cx, cz, 240, 60, 240, 0, 0x4e4943);
+    let r = 150;
+    for (let k = 0; k < 6; k++) {
+      const y0 = k * top / 6, hh = top / 6;
+      put("cyl", cx, cz, r, hh, r, 0, 0x6d665e, y0);
+      put("cyl", cx, cz, r * 1.35, 10, r * 1.35, 0, 0x3e3a35, y0 + hh - 10);
+      r *= 0.86;
+    }
+    put("cyl", cx, cz, r * 2.4, 40, r * 2.4, 0, 0x2a2622, top);
+    glows.push({ x: cx, y: base + top + 70, z: cz, size: 7000, col: CANDLE, core: 900, k: "candle" });
+    towers.push({ x: cx, y: base + top, z: cz, name });
+  }
+  // the dead Candle Tower of the haunted north: same mile-high bones, but cold, cracked and unlit
+  function deadTower() {
+    // find the largest connected body of haunted land (the big northern island) and stand at its heart
+    const S = 2, GW = Math.ceil(NX / S), GH = Math.ceil(NY / S), lab = new Int32Array(GW * GH);
+    const haunted = (gx, gy) => { const k = ((gy * S) * NX + gx * S) * 4, id = idp[k] * 256 + idp[k + 1]; return id && meta.territories[id - 1].t === "Literally Haunted"; };
+    let bestComp = null, comp = 0;
+    for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+      if (lab[gy * GW + gx] || !haunted(gx, gy)) continue;
+      comp++; const stack = [gy * GW + gx]; lab[gy * GW + gx] = comp; const cells = [];
+      while (stack.length) { const c = stack.pop(); cells.push(c); const cx0 = c % GW, cy0 = (c / GW) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const x = cx0 + dx, y = cy0 + dy;
+          if (x >= 0 && y >= 0 && x < GW && y < GH && !lab[y * GW + x] && haunted(x, y)) { lab[y * GW + x] = comp; stack.push(y * GW + x); } } }
+      if (!bestComp || cells.length > bestComp.length) bestComp = cells;
+    }
+    if (!bestComp) return;
+    // the heart: the cell farthest from the island's edge
+    const inC = new Set(bestComp); let bx = 0, by = 0, bestD = -1;
+    for (const c of bestComp) { const x = c % GW, y = (c / GW) | 0; let d = 0;
+      while (d < 200 && inC.has((y + d) * GW + x) && inC.has((y - d) * GW + x) && inC.has(y * GW + x + d) && inC.has(y * GW + x - d)) d++;
+      if (d > bestD) { bestD = d; bx = x * S; by = y * S; } }
+    const [cx, cz] = toWorld([bx / NX, by / NY]), top = 1609 * VF;
+    put("cyl", cx, cz, 240, 60, 240, 0, 0x2e2b28);
+    let r = 150;
+    for (let k = 0; k < 5; k++) {                                   // the upper stage and brazier are gone
+      const y0 = k * top / 6, hh = top / 6 * (k === 4 ? 0.55 : 1);
+      put("cyl", cx, cz, r, hh, r, 0, k % 2 ? 0x3b3733 : 0x34302c, y0);
+      if (k < 4) put("cyl", cx, cz, r * 1.35, 10, r * 1.35, 0, 0x26231f, y0 + hh - 10);
+      r *= 0.86;
+    }
+    for (let i = 0; i < 14; i++) {                                  // fallen masonry around the foot
+      const a = rnd() * Math.PI * 2, d = 160 + rnd() * 260;
+      put("box", cx + Math.cos(a) * d, cz + Math.sin(a) * d, 30 + rnd() * 40, 14 + rnd() * 24, 30 + rnd() * 40, rnd() * 3, 0x302c29, -4, { rz: (rnd() - .5) * .6 });
+    }
+    marks.push({ x: cx, z: cz, y: surf(Math.max(hW(cx, cz), 0)) + top * 0.72 + 200, t: "The dead Candle Tower" });
+  }
+  function lighthouse(cx, cz, name, w = 30) {                  // w: shaft width, sized to the island it stands on
+    // seat the tower on the lowest ground around its footprint (the mesh is coarser than the height data, so small
+    // peaks render lower than their true height) and run the shaft down into the rock so it never floats
+    const ring = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => hW(cx + Math.cos(k * .785) * w * 1.5, cz + Math.sin(k * .785) * w * 1.5));
+    const g = surf(Math.max(hW(cx, cz), 2)), base = surf(Math.max(Math.min(...ring, hW(cx, cz)), 0)) - 40, top = 300 * VF;
+    put("cyl", cx, cz, w * 1.6, g - base + 6, w * 1.6, 0, 0x5d564d, 0, { abs: base });           // rock-cut plinth
+    put("cyl", cx, cz, w, top, w, 0, 0x7a7266); put("cyl", cx, cz, w * 1.35, 10, w * 1.35, 0, 0x3e3a35, top - 10);
+    glows.push({ x: cx, y: g + top + 25, z: cz, size: 900, col: CANDLE, core: 150, k: "lamp" });
+    beams.push({ x: cx, y: g + top + 25, z: cz });
+    towers.push({ x: cx, y: g + top, z: cz, name });
+  }
+
+  const STYLE = (s) => s.dev === "bylong" ? "bylong" : s.dev === "outer" ? "outer" : s.cul === "european" ? "european" : "eastern";
+  const townLabels = [];
+  for (const s of meta.settlements) {
+    const [cx, cz] = toWorld(s.uv), st = STYLE(s);
+    if (s.k === "candle") { candleTower(cx, cz, s.name); continue; }
+    if (s.k === "lighthouse") { if (s.name === "Carry On") lighthouse(cx, cz, "Giantwatch", 14); else lighthouse(cx, cz, s.name); continue; }
+    if (s.k === "metropolis") { metropolis(cx, cz); glows.push({ x: cx, y: surf(hW(cx, cz)) + 120, z: cz, size: 2000, col: FIRE, k: "city" }); townLabels.push({ x: cx, z: cz, t: "Bylong" }); continue; }
+    const n = { large: 120, medium: 70, small: 30, port: 26 }[s.k] || 0, rad = { large: 520, medium: 400, small: 260, port: 240 }[s.k] || 200;
+    if (n && s.dev === "vale_core" && (s.k === "large" || s.k === "medium")) planned(cx, cz, rad, n);
+    else if (n) cluster(cx, cz, rad, n, st);
+    if (s.castle) {
+      const big = s.k === "large" || s.k === "medium";
+      castle(cx + (n ? 180 : 0), cz - (n ? 140 : 0), st, s.house, big);
+      if (st === "outer") { barracks(cx, cz); windowLights(cx + 180, cz - 140, 230, 26, [1.0, 0.36, 0.12], 36); }
+      windowLights(cx, cz, rad + 120, big ? 90 : 40, FIRE, big ? 30 : 26);
+      glows.push({ x: cx, y: surf(hW(cx, cz)) + 90, z: cz, size: big ? 1300 : 900, col: FIRE, k: "fire" });
+      townLabels.push({ x: cx, z: cz, t: s.castle });
+    } else if (n) windowLights(cx, cz, rad, Math.round(n / 4), HEARTH, 18);   // unwalled towns: hearths only
+  }
+  // villages: hearths and lanterns everywhere people live, far below the castle towns
+  const VILL = { hearth: [HEARTH, 9, 14], east: [[1.0, 0.72, 0.4], 16, 16], shadow: [[0.8, 0.35, 0.2], 3, 12] };
+  deadTower();
+  for (const v of meta.villages) {
+    const [cx, cz] = toWorld(v.uv);
+    const style = v.dev === "outer" ? "outer" : v.dev === "bylong" ? "bylong" : v.cul === "european" ? "european" : "eastern";
+    cluster(cx, cz, 170, v.dev === "bylong" ? 14 : 8, style, 0.85);
+    const [c, n, sz] = VILL[v.lit] || VILL.hearth; windowLights(cx, cz, 170, n, c, sz, 6, 18);
+  }
+  for (const l of meta.lights) {
+    const [cx, cz] = toWorld(l.uv);
+    if (l.k === "volcano") glows.push({ x: cx, y: surf(hW(cx, cz)) + 60, z: cz, size: l.name === "False Light" ? 2600 : 1500, col: LAVA, k: "lava" });
+    if (l.k === "earthfire") glows.push({ x: cx, y: surf(hW(cx, cz)) + 40, z: cz, size: 2200, col: [1.0, 0.55, 0.3], k: "lava" });
+  }
+
+  // ---- lore landmarks ----
+  const LM = meta.landmarks;
+  for (const a of LM.arches) {                                        // Arch of the Sun, Idolbridge: great stone arches
+    const [ax, az] = toWorld(a.ends[0]), [bx, bz] = toWorld(a.ends[1]);
+    const ya = surf(Math.max(hW(ax, az), 0)), yb = surf(Math.max(hW(bx, bz), 0));
+    const span = Math.hypot(bx - ax, bz - az), rise = Math.max(span * 0.14, 70);
+    const curve = new THREE.CatmullRomCurve3([0, .25, .5, .75, 1].map((t) => new THREE.Vector3(ax + (bx - ax) * t, ya + (yb - ya) * t + Math.sin(Math.PI * t) * rise, az + (bz - az) * t)));
+    const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, Math.max(span * 0.035, 22), 8), instMatSingle(0xa79c88));
+    scene.add(m);
+    marks.push({ x: (ax + bx) / 2, y: (ya + yb) / 2 + rise + 120, z: (az + bz) / 2, t: a.name });
+  }
+  function instMatSingle(hex) {                                        // non-instanced mesh with the same lighting
+    const c = new THREE.Color(hex);
+    return new THREE.ShaderMaterial({ uniforms: Object.assign({ uCol: { value: new THREE.Vector3(c.r, c.g, c.b) } }, uniforms),
+      vertexShader: `varying vec3 vW; varying vec3 vN; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
+      fragmentShader: COMMON + `uniform vec3 uCol; varying vec3 vW; varying vec3 vN;
+        void main() { vec3 a = pow(uCol, vec3(2.2)); vec3 n = normalize(vN);
+          vec3 sun = uSun * (vec3(0.2) + vec3(1.0, 0.96, 0.9) * max(dot(n, uSunDir), 0.0));
+          gl_FragColor = vec4(finish(a * (vec3(0.012) + realmLight(vW) * 1.3 + sun), distance(cameraPosition, vW)), 1.0); }` });
+  }
+  for (const uv of LM.temples) { const [x, z] = toWorld(uv); const s = 0.7 + rnd() * 0.8;    // hidden temples and idols of the False Gods
+    put("box", x, z, 60 * s, 14 * s, 60 * s, rnd(), 0x8c8170); put("box", x, z, 42 * s, 14 * s, 42 * s, rnd(), 0x8c8170, 14 * s);
+    put("pyr", x, z, 34 * s, 30 * s, 34 * s, 0, 0x9a8e7a, 28 * s); if (rnd() < .5) put("box", x + 50 * s, z, 10 * s, 60 * s, 10 * s, 0, 0x6f6658); }
+  marks.push(...(LM.temples.length ? [{ uv: LM.temples[0], t: "Temples of the False Gods" }] : []));
+  for (const uv of LM.outposts) { const [x, z] = toWorld(uv);                                  // False God outposts, half-ruined
+    put("cyl", x, z, 50, 120 + rnd() * 80, 50, 0, 0x5d574e); put("box", x + 40, z + 20, 30, 30, 18, rnd(), 0x5d574e); }
+  if (LM.outposts.length) marks.push({ uv: LM.outposts[0], t: "Outposts of the False Gods" });
+  for (const uv of LM.ruins) { const [x, z] = toWorld(uv);                                     // razed mining towns
+    for (let i = 0; i < 9; i++) put("box", x + (rnd() - .5) * 220, z + (rnd() - .5) * 220, 20 + rnd() * 20, 4 + rnd() * 12, 16 + rnd() * 16, rnd() * 3, 0x4c4741); }
+  if (LM.ruins.length) marks.push({ uv: LM.ruins[0], t: "Razed mining towns" });
+  for (const uv of LM.giants) { const [x, z] = toWorld(uv);                                    // the Giants' former home: colossal masonry
+    put("box", x, z, 120 + rnd() * 80, 180 + rnd() * 160, 60 + rnd() * 40, rnd() * 3, 0x6b665d, -10, { rz: (rnd() - .5) * .3 }); }
+  if (LM.giants.length) marks.push({ uv: LM.giants[0], t: "Ruins of the Giants" });
+  for (const uv of LM.whalebones) { const [x, z] = toWorld(uv); const rot = rnd() * Math.PI;   // Ancient Whale Graveyard
+    for (let i = 0; i < 9; i++) { const t = (i - 4) * 26; put("rib", x + Math.cos(rot) * t, z + Math.sin(rot) * t, 120 - Math.abs(i - 4) * 9, 120 - Math.abs(i - 4) * 9, 120, rot + Math.PI / 2, 0xe6dfcc, 0); }
+    put("box", x, z, 260, 10, 14, rot, 0xd8d0bc, 4); }
+  if (LM.whalebones.length) marks.push({ uv: LM.whalebones[0], t: "Ancient Whale Graveyard" });
+  const whaleObjs = [];
+  for (const w of LM.whales) { const [x, z] = toWorld(w.uv);                                   // great whales of the Abyss, surfacing
+    whaleObjs.push({ x, z, rot: w.rot, ph: rnd() * 6.28 }); }
+  for (const uv of LM.redwoods) { const [x, z] = toWorld(uv); const hh = 110 + rnd() * 120;    // the Redwood Isle's towering trees
+    put("cyl", x, z, 10, hh * .45, 10, 0, 0x4a2418); put("cone", x, z, 46, hh * .75, 46, 0, 0x1f2a18, hh * .3); }
+  for (const uv of LM.wildwatch) { const [x, z] = toWorld(uv);                                 // Wildwatch: the dark tower on Outlook
+    put("cyl", x, z, 40, 95, 40, 0, 0x1d1c1f); put("cone", x, z, 54, 30, 54, 0, 0x141316, 95); marks.push({ uv, t: "Wildwatch" }); }
+  for (const uv of LM.dovecotes) { const [x, z] = toWorld(uv); put("cyl", x, z, 26, 50, 26, 0, 0xd9d2c2); put("cone", x, z, 34, 22, 34, 0, 0x5a4a3c, 50); }
+  if (LM.dovecotes.length) marks.push({ uv: LM.dovecotes[0], t: "The High King's dovecotes" });
+  for (const uv of LM.harbours) { const [x, z] = toWorld(uv); put("box", x, z, 26, 8, 240, Math.atan2(x, z), 0x8a8274, 0, { water: true, abs: 1.2 }); }
+
+  // ---- forests: groves across every forest territory (and Tanglewood's forested mountains), styled by the lore ----
+  const COLD = new Set(["Northlands", "Shadowlands", "Western Isles", "The Span", "Lonely Isles", "The Broken Isle"]);
+  function treeStyle(t) {
+    const n = t.n || "", r = t.r || "", a = t.a || "";
+    if (r === "Ebon Isle") return [0x0f0f0f, "ico"];                                 // pure black foliage
+    if (n === "Yellow Forest") return [0xb8a030, "ico"];
+    if (n === "Whitewood" || n === "Whitewood Isle" || n === "Isle of Apples") return [0xd2cdbf, "ico"];
+    if (r === "The Golden Cape") return [0xb8952e, "ico"];                           // golden foliage
+    if (r === "The Redwood Isle") return [0x3a1e14, "cone"];
+    if (r === "Tanglewood") return [0x10200f, "cone"];                              // vast dark forests
+    if (r === "The Rainwood") return [0x2f5a26, "ico"];
+    if (a === "Eastern Isles") return [0x22301f, "ico"];
+    if (COLD.has(a)) return [0x1f3a22, "cone"];
+    return [0x2c4e24, "ico"];
+  }
+  const tr = mulberry(77);
+  for (let py = 1; py < NY - 1; py += 2) for (let px = 1; px < NX - 1; px += 2) {
+    const k = (py * NX + px) * 4, id = idp[k] * 256 + idp[k + 1];
+    if (!id) continue;
+    const t = meta.territories[id - 1];
+    const isForest = t.t === "Forest" || t.t === "Forest Coast" || (t.r === "Tanglewood" && t.t === "Mountains");
+    if (!isForest) continue;
+    for (let j = 0; j < 2; j++) {
+      if (tr() > 0.9) continue;
+      const u = (px + tr() * 2 - 0.5) / NX, v = (py + tr() * 2 - 0.5) / NY, g = hAt(u, v);
+      if (g < 3) continue;
+      let [colr, kind] = treeStyle(t);
+      if (kind === "ico" && g > 900) { kind = "cone"; colr = 0x1f3a22; }               // highland conifers
+      const c = new THREE.Color(colr).multiplyScalar(0.85 + tr() * 0.3);
+      const x = (u - 0.5) * W, z = (v - 0.5) * H, s = 0.8 + tr() * 0.5;
+      if (kind === "cone") lists.cone.push([x, surf(g) - 4, z, 30 * s, 70 * s, 30 * s, 0, c.getHex(), 0, 0]);
+      else lists.ico.push([x, surf(g) - 6, z, 46 * s, 40 * s, 46 * s, tr() * 3, c.getHex(), 0, 0]);
+    }
+  }
+
+  for (const [k, arr] of Object.entries(lists)) {
+    if (!arr.length) continue;
+    const im = new THREE.InstancedMesh(GEOS[k], instMat(), arr.length);
+    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(), E = new THREE.Euler();
+    arr.forEach(([x, y, z, w, hh, d, rot, color, rx, rz], i) => {
+      P.set(x, y, z); Q.setFromEuler(E.set(rx, rot, rz, "YXZ")); S.set(w, hh, d);
+      M.compose(P, Q, S); im.setMatrixAt(i, M); im.setColorAt(i, new THREE.Color(color));
+    });
+    im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; im.frustumCulled = false; scene.add(im);
+  }
+  // whales: animated, so their own instanced mesh
+  const whaleMesh = new THREE.InstancedMesh(GEOS.whale, instMat(), whaleObjs.length * 2);
+  whaleMesh.frustumCulled = false; scene.add(whaleMesh);
+  whaleObjs.forEach((_, i) => { whaleMesh.setColorAt(i * 2, new THREE.Color(0x2a3036)); whaleMesh.setColorAt(i * 2 + 1, new THREE.Color(0x2a3036)); });
+  whaleMesh.instanceColor.needsUpdate = true;
+  function updateWhales(t) {
+    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(), E = new THREE.Euler();
+    whaleObjs.forEach((w, i) => {
+      const bob = Math.sin(t * 0.35 + w.ph);
+      P.set(w.x, -40 + bob * 34, w.z); Q.setFromEuler(E.set(0, w.rot, 0)); S.set(90, 60, 420); M.compose(P, Q, S); whaleMesh.setMatrixAt(i * 2, M);
+      const fx = w.x - Math.sin(w.rot) * 230, fz = w.z - Math.cos(w.rot) * 230;                   // fluke
+      P.set(fx, -10 + Math.sin(t * 0.35 + w.ph - 1.2) * 46, fz); S.set(220, 14, 70); M.compose(P, Q, S); whaleMesh.setMatrixAt(i * 2 + 1, M);
+    });
+    whaleMesh.instanceMatrix.needsUpdate = true;
+  }
+  if (whaleObjs.length) marks.push({ x: whaleObjs[0].x, y: 200, z: whaleObjs[0].z, t: "Great whales of the Abyss" });
+
+  // ---- light points, glow sprites, lighthouse beams, the Black Fume's smoke ----
+  function pointsLayer(items, k, blending = THREE.AdditiveBlending, dark = false) {
+    const g = new THREE.BufferGeometry();
+    const p = new Float32Array(items.length * 3), c = new Float32Array(items.length * 3), s = new Float32Array(items.length), ph = new Float32Array(items.length);
+    items.forEach((it, i) => { p.set([it[0], it[1], it[2]], i * 3); c.set(it[3], i * 3); s[i] = it[4]; ph[i] = it[5]; });
+    g.setAttribute("position", new THREE.BufferAttribute(p, 3)); g.setAttribute("lcol", new THREE.BufferAttribute(c, 3));
+    g.setAttribute("size", new THREE.BufferAttribute(s, 1)); g.setAttribute("phase", new THREE.BufferAttribute(ph, 1));
+    const m = new THREE.ShaderMaterial({
+      uniforms: { uTime: uniforms.uTime, uScale: { value: renderer.domElement.height / 2 }, uK: { value: k }, uSunFade: { value: 1 }, uMul: { value: 1 } },
+      vertexShader: `attribute float size; attribute float phase; attribute vec3 lcol; uniform float uTime; uniform float uScale; varying vec3 vC; varying float vF;
+        void main() { vec3 p = position; ${dark ? "p.y += mod(uTime * 18.0 + phase * 40.0, 900.0); p.x += mod(uTime * 18.0 + phase * 40.0, 900.0) * 0.9;" : ""}
+          vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
+          vF = ${dark ? "1.0 - mod(uTime * 18.0 + phase * 40.0, 900.0) / 900.0" : "0.82 + 0.12 * sin(uTime * 6.0 + phase) + 0.06 * sin(uTime * 11.0 + phase * 2.3)"}; vC = lcol;
+          gl_PointSize = clamp(size * uScale / -mv.z, 0.0, 1024.0); }`,
+      fragmentShader: `uniform float uK; uniform float uSunFade; uniform float uMul; varying vec3 vC; varying float vF;
+        void main() { float d = length(gl_PointCoord - 0.5) * 2.0; float a = pow(max(1.0 - d, 0.0), 2.2);
+          ${dark ? "gl_FragColor = vec4(vC * (0.6 + 0.4 * (1.0 - d)), a * 0.32 * vF);" : "float core = pow(max(1.0 - d * 2.6, 0.0), 3.0); gl_FragColor = vec4(vC * (a * uK + core * 1.4) * vF * uSunFade * uMul, 1.0);"} }`,
+      transparent: true, depthWrite: false, blending
+    });
+    const pts = new THREE.Points(g, m); pts.frustumCulled = false; scene.add(pts); return m;
+  }
+  const winMat = pointsLayer(lightPts, 0.55);
+  const glowMat = pointsLayer(glows.filter((g) => g.k !== "candle").map((g, i) => [g.x, g.y, g.z, g.col.map((v) => v * 0.55), g.size, i * 7.1]), 0.5);
+  const coreMat = pointsLayer(glows.filter((g) => g.core && g.k !== "candle").map((g, i) => [g.x, g.y, g.z, [1, 0.95, 0.8], g.core, i * 3.3]), 1.2);
+  // the Candle Towers' own flames, on their slow two-minute cycle
+  const candleGlowMat = pointsLayer(glows.filter((g) => g.k === "candle").map((g, i) => [g.x, g.y, g.z, g.col.map((v) => v * 0.9), g.size, i * 7.1]), 0.5);
+  const candleCoreMat = pointsLayer(glows.filter((g) => g.k === "candle").map((g, i) => [g.x, g.y, g.z, [1, 0.95, 0.8], g.core, i * 3.3]), 1.2);
+  const smoke = [];
+  for (const uv of LM.smoke) { const [x, z] = toWorld(uv); const y0 = surf(Math.max(hW(x, z), 0)) + 200;
+    for (let i = 0; i < 26; i++) smoke.push([x + (rnd() - .5) * 300, y0 + rnd() * 200, z + (rnd() - .5) * 300, [0.16, 0.14, 0.13], 1200 + rnd() * 1400, i * 0.8 + rnd()]); }
+  const smokeMat = smoke.length ? pointsLayer(smoke, 1, THREE.NormalBlending, true) : null;
+  if (LM.smoke.length) marks.push({ uv: LM.smoke[0], t: "The Black Fume", y: 1800 });
+  const beamMeshes = beams.map((b) => {                       // sweeping lighthouse beams
+    const g = new THREE.ConeGeometry(120, 2600, 24, 1, true).translate(0, -1300, 0).rotateZ(Math.PI / 2);
+    const m = new THREE.Mesh(g, new THREE.ShaderMaterial({
+      uniforms: { uSunFade: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      vertexShader: `varying float vX; void main() { vX = -position.x / 2600.0; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `uniform float uSunFade; varying float vX; void main() { gl_FragColor = vec4(vec3(1.0, 0.86, 0.6) * 0.07 * pow(1.0 - clamp(vX, 0.0, 1.0), 2.5) * uSunFade, 1.0); }`
+    }));
+    m.position.set(b.x, b.y, b.z); scene.add(m); return m;
+  });
+
+  // ---- labels ----
+  const labelHost = $("#labels"), labels = [];
+  const addLabel = (x, y, z, text, cls, far, pri) => {
+    const el = document.createElement("div"); el.className = "lbl " + cls; el.textContent = text; labelHost.appendChild(el);
+    labels.push({ el, p: new THREE.Vector3(x, y, z), far, pri, w: 0 });
+  };
+  for (const t of towers) addLabel(t.x, t.y + 420, t.z, t.name, "tower", 120000, 0);
+  for (const t of townLabels) addLabel(t.x, surf(Math.max(hW(t.x, t.z), 0)) + 180, t.z, t.t, "town", 16000, 1);
+  for (const m of marks) { const [x, z] = m.uv ? toWorld(m.uv) : [m.x, m.z]; addLabel(x, m.y !== undefined && !m.uv ? m.y : surf(Math.max(hW(x, z), 0)) + (m.y || 260), z, m.t, "mark", 22000, 2); }
+  for (const r of meta.regions) { const [x, z] = toWorld(r.uv); addLabel(x, surf(Math.max(hW(x, z), 0)) + 250, z, r.t, "region", 38000, 3); }
+  labels.sort((a, b) => a.pri - b.pri);
+  const V3 = new THREE.Vector3();
+  function placeLabels() {
+    if (!$("#lbls").checked) { labelHost.style.display = "none"; return; }
+    labelHost.style.display = "";
+    const w = host.clientWidth, h = host.clientHeight, boxes = [];
+    for (const L of labels) {
+      const dist = camera.position.distanceTo(L.p);
+      V3.copy(L.p).project(camera);
+      if (!(V3.z < 1 && dist < L.far && Math.abs(V3.x) < 1.1 && Math.abs(V3.y) < 1.1)) { L.el.style.opacity = 0; continue; }
+      if (!L.w) L.w = L.el.offsetWidth || 80;
+      const x = (V3.x + 1) / 2 * w, y = (1 - V3.y) / 2 * h;
+      const box = [x - L.w / 2, y - 9, x + L.w / 2, y + 9];
+      if (boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) { L.el.style.opacity = 0; continue; }
+      boxes.push(box);
+      L.el.style.transform = `translate(${(x - L.w / 2).toFixed(1)}px, ${(y - 9).toFixed(1)}px)`;
+      L.el.style.opacity = String(Math.min(1, (L.far - dist) / (L.far * 0.25)));
+    }
+  }
+
+  // ---- key: the houses, in the colours flown from their castles ----
+  const hcount = {}, hcastles = {};
+  meta.territories.forEach((t) => { if (t.h) hcount[t.h] = (hcount[t.h] || 0) + 1; });
+  meta.settlements.forEach((st) => { if (st.castle && st.house) hcastles[st.house] = (hcastles[st.house] || 0) + 1; });
+  const hex = (n) => "#" + n.toString(16).padStart(6, "0");
+  $("#key").innerHTML = '<li class="khead"><span></span><span>Houses</span><span class="ct">castles</span></li>' +
+    Object.keys(hcount).filter((h) => HOUSE_COL[h] !== undefined).sort((a, b) => hcount[b] - hcount[a])
+      .map((h) => `<li><i class="banner" style="background:${hex(HOUSE_COL[h])};border-color:${HOUSE_EDGE[h] || "#ece4d2"}"></i><span>${esc(h)}</span><span class="ct">${hcastles[h] || 0}</span></li>`).join("");
+
+  // ---- picking ----
+  const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+  let downAt = null;
+  renderer.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener("pointerup", (e) => {
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(mouse, camera);
+    const hit = ray.intersectObject(terrain)[0];
+    if (!hit) return;
+    const u = hit.uv.x, v = 1 - hit.uv.y;
+    const px = Math.min(NX - 1, Math.floor(u * NX)), py = Math.min(NY - 1, Math.floor(v * NY)), k = (py * NX + px) * 4;
+    const id = idp[k] * 256 + idp[k + 1], elev = hAt(u, v);
+    const lr = lp[k] / 255, lg = lp[k + 1] / 255, lb = lp[k + 2] / 255;
+    const lux = Math.min(1, (lr * lr + lg * lg + lb * lb) * 2 / 1.2);
+    const word = lux > 0.45 ? "Bright" : lux > 0.18 ? "Lit" : lux > 0.05 ? "Dim" : "Dark";
+    const t = id ? meta.territories[id - 1] : null, rows = [];
+    if (t) {
+      if (t.h) rows.push(["House", t.h]);
+      if (t.t) rows.push(["Terrain", t.t === "It's a Hecking Volcano" ? "Volcano" : t.t]);
+      if (t.c) rows.push(["Castle", t.c]);
+      if (t.w && !/None|See above/.test(t.w)) rows.push(["Town", t.w]);
+      if (t.s && !/^Port$/.test(t.s)) rows.push(["Lore", t.s.length > 260 ? t.s.slice(0, 257) + "…" : t.s]);
+    }
+    rows.push(["Elevation", elev > 0 ? Math.round(elev).toLocaleString("en-US") + " m" : "Sea, " + Math.round(-elev) + " m deep"]);
+    rows.push(["Light", `<span class="meter"><b style="width:${Math.round(lux * 100)}%"></b></span>${word}`]);
+    $("#cardbody").innerHTML = `<h2>${esc(t ? t.n || "Unnamed" : elev > 0 ? "An unnamed isle" : "Open water")}</h2>
+      <p class="where">${t ? esc([t.r, t.a].filter(Boolean).join(" · ")) : elev > 0 ? "One of the score uncharted" : "Beyond the territories"}</p>
+      <dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${a === "Light" ? b : esc(b)}</dd>`).join("")}</dl>`;
+    $("#card").hidden = false;
+  });
+  $("#cardx").addEventListener("click", () => { $("#card").hidden = true; });
+
+  // ---- view, controls, loop ----
+  const home = () => {
+    const [mx, mz] = toWorld([0.47, 0.5]);
+    controls.target.set(mx, 0, mz); camera.position.set(mx + 2500, 21000, mz + 26000); controls.update();
+  };
+  home();
+  $("#reset").addEventListener("click", home);
+  fetch("../index.html", { method: "HEAD" }).then((r) => { if (!r.ok) throw 0; }).catch(() => {
+    const b = $("#back"); b.href = "https://claude.ai/artifact/6gDgP3a6sm4KANoP4rBkct"; b.target = "_blank"; b.rel = "noopener"; });
+  const fades = [winMat, glowMat, coreMat, candleGlowMat, candleCoreMat, ...beamMeshes.map((b) => b.material)];
+  $("#sun").addEventListener("change", (e) => {
+    const on = e.target.checked;
+    uniforms.uSun.value = on ? 1 : 0;
+    uniforms.uFogCol.value.set(on ? 0x6f8597 : 0x04060a);
+    uniforms.uFogDen.value = on ? 0.000014 : 0.000028;
+    renderer.setClearColor(uniforms.uFogCol.value);
+    for (const m of fades) m.uniforms.uSunFade.value = on ? 0.35 : 1;
+  });
+  renderer.setClearColor(uniforms.uFogCol.value);
+  $("#lbls").addEventListener("change", placeLabels);
+  window.addEventListener("resize", () => {
+    renderer.setSize(host.clientWidth, host.clientHeight);
+    camera.aspect = host.clientWidth / host.clientHeight; camera.updateProjectionMatrix();
+    for (const m of [winMat, glowMat, coreMat, candleGlowMat, candleCoreMat, smokeMat]) if (m) m.uniforms.uScale.value = renderer.domElement.height / 2;
+  });
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const clock = new THREE.Clock();
+  $("#loading").hidden = true;
+  (function loop() {
+    requestAnimationFrame(loop);
+    const t = reduce ? 0 : clock.getElapsedTime();
+    uniforms.uTime.value = t;
+    // Candle Towers wax and wane: full brightness down to 25% and back, every two minutes
+    const ck = 0.625 + 0.375 * Math.cos(t * Math.PI * 2 / 120);
+    uniforms.uCandleK.value = ck; candleGlowMat.uniforms.uMul.value = ck; candleCoreMat.uniforms.uMul.value = 0.4 + 0.6 * ck;
+    beamMeshes.forEach((b, i) => { b.rotation.y = t * 0.6 + i * 2.1; });
+    if (whaleObjs.length) updateWhales(t);
+    controls.update();
+    const floor = surf(Math.max(hW(camera.position.x, camera.position.z), 0)) + 150;
+    if (camera.position.y < floor) camera.position.y = floor;
+    renderer.render(scene, camera);
+    placeLabels();
+  })();
+  window.__three = { camera, controls, scene, uniforms };
+}
+})();
+</script>
