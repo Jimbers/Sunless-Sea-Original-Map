@@ -700,7 +700,7 @@ function start(meta, himg, idimg, limg, aimg) {
     const t = id ? meta.territories[id - 1] : null, rows = [];
     if (t) {
       if (t.h) rows.push(["House", t.h]);
-      if (t.t) rows.push(["Terrain", t.t === "It's a Hecking Volcano" ? "Volcano" : t.t]);
+      if (t.t) rows.push(["Terrain", t.t === "It's a Hecking Volcano" ? "Volcanic" : t.t === "Literally Haunted" ? "Haunted" : t.t]);
       if (t.c) rows.push(["Castle", t.c]);
       if (t.w && !/None|See above/.test(t.w)) rows.push(["Town", t.w]);
       if (t.s && !/^Port$/.test(t.s)) rows.push(["Lore", t.s.length > 260 ? t.s.slice(0, 257) + "…" : t.s]);
