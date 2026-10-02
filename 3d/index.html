@@ -97,6 +97,7 @@ body { margin: 0; background: var(--void); color: var(--ink); font-family: var(-
   </header>
   <div class="controls">
     <label class="sw" for="sun"><div><span>Sun</span><small>Light the whole realm to read the land</small></div><input class="toggle" type="checkbox" id="sun"></label>
+    <label class="sw" for="winter"><div><span>Winter</span><small>The Candle Towers burn at a quarter of their light</small></div><input class="toggle" type="checkbox" id="winter"></label>
     <label class="sw" for="lbls"><div><span>Names</span><small>Regions, towers, castles and landmarks</small></div><input class="toggle" type="checkbox" id="lbls" checked></label>
   </div>
   <ul class="key" id="key"></ul>
@@ -124,10 +125,10 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const CANDLE = [1.0, 0.82, 0.52], FIRE = [1.0, 0.52, 0.2], LAVA = [1.0, 0.28, 0.08], ELECTRIC = [1.0, 0.9, 0.7], HEARTH = [1.0, 0.6, 0.28];
 // outer colours of each house's two-stroke boundary in the QGIS symbology (inner colours are HOUSE_COL)
-const HOUSE_EDGE = { "Outer Blood": "#002673", "Vale": "#002673", "Steelheart": "#000000", "Werebrand": "#ffffff", "Longservant": "#a87000",
-  "Giantsbane": "#ff00c5", "Yyrodh Abbey": "#000000", "Sel Serro Abbey": "#f2d22e" };
-const HOUSE_COL = { "Outer Blood": 0xa80000, "Vale": 0x00734c, "Steelheart": 0xe60000, "Werebrand": 0xe69800, "Longservant": 0xffffff,
-  "Giantsbane": 0x4ce600, "Yyrodh Abbey": 0x101010, "Sel Serro Abbey": 0xf2d22e, "Foundling": 0x000000, "Reedland": 0xffffff, "Northern Court": 0xffebbe };
+const HOUSE_EDGE = { "Somber": "#000000", "Outer Blood": "#002673", "Vale": "#002673", "Steelheart": "#000000", "Werebrand": "#ffffff", "Longservant": "#a87000",
+  "Giantsbane": "#ff00c5", "Yyrodh Abbey": "#000000", "Sel Saro Abbey": "#f2d22e" };
+const HOUSE_COL = { "Somber": 0x00a84c, "Outer Blood": 0xa80000, "Vale": 0x00734c, "Steelheart": 0xe60000, "Werebrand": 0xe69800, "Longservant": 0xffffff,
+  "Giantsbane": 0x4ce600, "Yyrodh Abbey": 0x101010, "Sel Saro Abbey": 0xf2d22e, "Foundling": 0x000000, "Reedland": 0xffffff, "Northern Court": 0xffebbe };
 
 const loadImage = (url) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(url)); i.src = url; });
 function pixels(img) {
@@ -189,7 +190,7 @@ function start(meta, himg, idimg, limg, aimg) {
       float fl = 0.86 + 0.08 * sin(uTime * 7.3 + cell * 40.0) + 0.06 * sin(uTime * 13.1 + cell * 17.0);
       float can = 0.95 + 0.05 * sin(uTime * 1.7 + cell * 3.0);
       float lav = 0.8 + 0.2 * sin(uTime * 0.9 + cell * 6.0);
-      return l.r * uCandle * can * 0.7 * uCandleK + l.g * uFire * fl + l.b * uLava * lav;     // Candle Towers 30% dimmer
+      return l.r * uCandle * can * 0.7 * uCandleK + l.g * uFire * fl * 0.14 + l.b * uLava * lav;   // towns burn at ~1/10 of a tower     // Candle Towers 30% dimmer
     }
     vec3 finish(vec3 c, float dist) {
       c = c / (1.0 + c * 0.85) * 1.25;
@@ -589,6 +590,175 @@ function start(meta, himg, idimg, limg, aimg) {
     const mx = cx + Math.cos(a) * (r - 60), mz = cz + Math.sin(a) * (r - 60);
     put("box", mx, mz, 60, 34, 48, rot, 0x6a6b6f); put("gable", mx, mz, 62, 18, 50, rot, 0x34363a, 34);
   }
+
+  // ---- Black Redoubt: a dark sea fortress of round bastions standing out in the water off its shore
+  function seaFort(fx, fz, ox, oz, house, R = 150) {
+    const FLOOR = 42, base = -34, DARK = [0x37373a, 0x3e3e42, 0x333336];
+    put("cyl", fx, fz, R * 2 + 30, FLOOR - base, R * 2 + 30, 0, 0x3a3a3d, 0, { abs: base, water: true });       // the stone platform in the sea
+    const N = 9, pts = [];
+    for (let k = 0; k < N; k++) { const a = k / N * Math.PI * 2; pts.push([fx + Math.cos(a) * R, fz + Math.sin(a) * R]); }
+    for (let k = 0; k < N; k++) {
+      const [x, z] = pts[k], [x2, z2] = pts[(k + 1) % N], L = Math.hypot(x2 - x, z2 - z);
+      put("box", (x + x2) / 2, (z + z2) / 2, 26, FLOOR - base + 46, L, Math.atan2(x2 - x, z2 - z), pick(DARK), 0, { abs: base, water: true });
+      put("cyl", x, z, 58, FLOOR - base + 62, 58, 0, pick(DARK), 0, { abs: base, water: true });               // round bastion
+      put("cyl", x, z, 64, 6, 64, 0, 0x2a2a2d, 0, { abs: FLOOR + 62, water: true });
+      for (let q = 0; q < 6; q++) { const b = q / 6 * Math.PI * 2;                                              // crenellations
+        put("box", x + Math.cos(b) * 27, z + Math.sin(b) * 27, 9, 9, 9, b, 0x2e2e31, 0, { abs: FLOOR + 68, water: true }); }
+    }
+    // a causeway and gate back to the shore
+    const gx = fx - ox * R, gz = fz - oz * R;
+    let cl = 40; while (cl < 700 && hW(gx - ox * cl, gz - oz * cl) < 2) cl += 20;              // the causeway runs back to dry land
+    put("box", gx - ox * cl / 2, gz - oz * cl / 2, 34, FLOOR - base - 6, cl + 20, Math.atan2(ox, oz), 0x404044, 0, { abs: base, water: true });
+    put("box", gx, gz, 60, FLOOR - base + 70, 40, Math.atan2(-oz, ox), 0x2e2e31, 0, { abs: base, water: true });
+    // inside: the black keep, barracks, a cistern
+    let w = 110, y = FLOOR;
+    for (let t = 0; t < 3; t++) { put("box", fx, fz, w, 34, w, 0.2, t ? 0x3a3a3e : 0x303033, 0, { abs: y, water: true });
+      put("hip", fx, fz, w * 1.3, 16, w * 1.3, 0.2, 0x222224, 0, { abs: y + 34, water: true }); y += 40; w *= 0.72; }
+    put("box", fx, fz, 6, 50, 28, 0, HOUSE_COL[house] || 0xa80000, 0, { abs: y + 30, water: true });
+    for (let k = 0; k < 10; k++) { const a = rnd() * Math.PI * 2, r = 70 + rnd() * 50, x = fx + Math.cos(a) * r, z = fz + Math.sin(a) * r;
+      put("box", x, z, 34, 16, 18, a, 0x434347, 0, { abs: FLOOR, water: true }); put("gable", x, z, 36, 9, 20, a, 0x26262a, 0, { abs: FLOOR + 16, water: true }); }
+    put("box", fx - ox * 70 + oz * 60, fz - oz * 70 - ox * 60, 46, 2, 46, 0.3, 0x2a4a5a, 0, { abs: FLOOR + 0.5, water: true });
+    for (let k = 0; k < 36; k++) { const a = rnd() * Math.PI * 2, r = R * (0.3 + rnd() * 0.7);
+      lightPts.push([fx + Math.cos(a) * r, FLOOR + 10 + rnd() * 50, fz + Math.sin(a) * r, [1.0, 0.36, 0.12], 26, rnd() * 100]); }
+    glows.push({ x: fx, y: FLOOR + 120, z: fz, size: 1100, col: FIRE, k: "fire" });
+  }
+  // ---- Valewatch: the great river city of the Vale. Its fortress holds the fork of the rivers; boulevards run out from it
+  //      through dense pale stone quarters, thickest towards Fruitful Vale; granaries, a library, a great hall, bridges
+  function riverCity(cx, cz, tx, tz, riv, house, fortAt) {
+    const nearRiver = (x, z, r) => riv.some(([rx, rz]) => Math.abs(rx - x) < r && Math.abs(rz - z) < r && Math.hypot(rx - x, rz - z) < r);
+    const phi = Math.atan2(tz - cz, tx - cx), reach = (a) => 380 + 300 * Math.max(0, Math.cos(a - phi)) ** 1.5;
+    const WALL = [0xefe7d6, 0xe7ddc7, 0xf4eee2, 0xe2d6bd], AV = 8;
+    // the fortress stands wholly on the right (eastern) bank, facing Fruitful Vale across from the fork
+    let [fx, fz] = fortAt || [cx, cz];
+    castle(fx, fz, "eastern", house, false, "Valewatch");
+    clearings.push({ x: cx, z: cz, r: 760 });
+    // quarters: dense blocks of pale stone with inner courtyards, each wedge between two boulevards laid on its own grid
+    for (let k = 0; k < AV; k++) {
+      const b = (k + 0.5) / AV * Math.PI * 2, ux = Math.cos(b), uz = Math.sin(b), vx = -uz, vz = ux, half = Math.PI / AV;
+      const far = reach(b) + 40;
+      for (let i = 7; i * 32 < far; i++) for (let j = -26; j <= 26; j++) {
+        if (i % 4 === 0 || ((j % 4) + 4) % 4 === 0) continue;                       // streets
+        const lu = i * 32, lv = j * 32, x = cx + ux * lu + vx * lv, z = cz + uz * lu + vz * lv;
+        const r = Math.hypot(x - cx, z - cz), a = Math.atan2(z - cz, x - cx);
+        const da = Math.abs(((a - b + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
+        if (Math.hypot(x - fx, z - fz) < 200) continue;                              // the fortress grounds
+        if (da > half - 16 / Math.max(r, 1) || r < 120 || r > reach(a) || Math.abs(r - 430) < 14) continue;     // boulevards, the ring road
+        if (nearRiver(x, z, 34) || !flatEnough(x, z, 14)) continue;
+        if (((i % 4) === 2 && ((j % 4) + 4) % 4 === 2) && rnd() < 0.7) continue;         // courtyards
+        const hh = 20 + rnd() * 12;
+        if (!put("box", x, z, 30, hh, 30, -b, pick(WALL))) continue;
+        put("hip", x, z, 34, 6, 34, -b, pick(VALE_ROOF), hh);
+      }
+    }
+    // the city wall: pale ramparts round the whole city, towers every so often, gatehouses on the boulevards,
+    //                water-gates where the rivers pass through
+    const WN = 72, wp = [];
+    for (let k = 0; k < WN; k++) { const a = k / WN * Math.PI * 2, r = reach(a) + 45; wp.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r, a]); }
+    for (let k = 0; k < WN; k++) {
+      const [x, z, a] = wp[k], [x2, z2] = wp[(k + 1) % WN], L = Math.hypot(x2 - x, z2 - z), mx = (x + x2) / 2, mz = (z + z2) / 2;
+      const av = ((a / (Math.PI * 2) * AV) % 1 + 1) % 1, gate = Math.min(av, 1 - av) < 0.5 / WN * AV;
+      const wet = nearRiver(mx, mz, 26), gy = surf(Math.max(hW(mx, mz), 0));
+      if (wet) put("box", mx, mz, 14, 30, L + 4, Math.atan2(x2 - x, z2 - z), 0xd9cfb9, 0, { abs: 18, water: true });       // water-gate arch over the river
+      else put("box", mx, mz, 12, 26, L + 4, Math.atan2(x2 - x, z2 - z), 0xe4dac4, 0, { abs: gy - 6 });
+      if (gate && !wet) { put("box", x, z, 36, 44, 30, -a, 0xefe7d6); put("hip", x, z, 46, 16, 40, -a, 0x1f4d34, 44); }
+      else if (k % 6 === 0 && !nearRiver(x, z, 26)) { put("cyl", x, z, 22, 44, 22, 0, 0xe9e0cc); put("cone", x, z, 28, 20, 28, 0, 0x2a8f86, 44); }
+    }
+    // tree-lined boulevards, and bridges where they cross the rivers
+    for (let k = 0; k < AV; k++) {
+      const a = k / AV * Math.PI * 2;
+      for (let r = 140; r < reach(a); r += 28) {
+        const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+        if (Math.hypot(x - fx, z - fz) < 200) continue;
+        if (nearRiver(x, z, 30)) { put("box", x, z, 26, 6, 34, Math.atan2(Math.cos(a), Math.sin(a)), 0xcfc6b0, 0, { abs: surf(Math.max(hW(x, z), 0)) + 4, water: true }); continue; }
+        for (const s2 of [-1, 1]) { const tx2 = x - Math.sin(a) * 11 * s2, tz2 = z + Math.cos(a) * 11 * s2;
+          put("ico", tx2, tz2, 12, 12, 12, rnd() * 3, 0x2f5a2a, 2); }
+      }
+    }
+    const at = (da, r) => [cx + Math.cos(phi + da) * r, cz + Math.sin(phi + da) * r];
+    // the library: a long colonnaded hall under a green-glazed dome
+    { const [x, z] = at(0.55, 330); if (!nearRiver(x, z, 60)) { put("box", x, z, 90, 30, 40, -phi, 0xf6f1e6); put("dome", x, z, 44, 34, 44, 0, 0x1f6b54, 30);
+      for (let c = -4; c <= 4; c++) put("cyl", x + Math.cos(-phi) * c * 10 + Math.sin(-phi) * 22, z - Math.sin(-phi) * c * 10 + Math.cos(-phi) * 22, 4, 28, 4, 0, 0xffffff); } }
+    // the great hall of the Vale: a high nave with twin towers
+    { const [x, z] = at(-0.6, 320); if (!nearRiver(x, z, 60)) { put("box", x, z, 34, 44, 100, -phi, 0xece4d2); put("gable", x, z, 36, 26, 104, -phi, 0x2f3a2c, 44);
+      for (const s2 of [-1, 1]) { const x2 = x + Math.cos(phi) * 50 * s2, z2 = z + Math.sin(phi) * 50 * s2; put("box", x2, z2, 20, 86, 20, -phi, 0xe7ddc7); put("pyr", x2, z2, 26, 30, 26, -phi, 0x2f3a2c, 86); } } }
+    // the granaries: rows of stone silos facing the farms of Fruitful Vale
+    { const [gx, gz] = at(0, reach(phi) + 50);
+      for (let i = -2; i <= 2; i++) for (let j = 0; j < 2; j++) { const x = gx - Math.sin(phi) * i * 30 + Math.cos(phi) * j * 30, z = gz + Math.cos(phi) * i * 30 + Math.sin(phi) * j * 30;
+        if (nearRiver(x, z, 30)) continue; put("cyl", x, z, 24, 48, 24, 0, 0xd2c6a6); put("cone", x, z, 28, 16, 28, 0, 0x5a4636, 48); } }
+    // the market halls by the fortress, and the river quays
+    { const [x, z] = at(Math.PI, 300); if (!nearRiver(x, z, 50)) { put("box", x, z, 80, 16, 50, -phi, 0xc9bfa8); put("hip", x, z, 96, 14, 64, -phi, 0x2a6a5c, 16); } }
+    for (const [rx, rz] of riv.filter((_, i) => i % 6 === 0)) { const d = Math.hypot(rx - cx, rz - cz);
+      if (d > 230 && d < 520) put("box", rx + 22, rz, 10, 4, 40, 0, 0xbfb6a0, 0, { abs: 3, water: true }); }
+    windowLights(cx, cz, 640, 260, [1.0, 0.72, 0.4], 22, 6, 34);
+    glows.push({ x: fx, y: surf(Math.max(hW(fx, fz), 0)) + 160, z: fz, size: 2200, col: [1.0, 0.75, 0.45], k: "city" });
+    return [fx, fz];
+  }
+
+  // ---- The Northern Court: a gigantic wall-castle spanning the whole Great North Pass, lesser walls climbing the
+  //      mountains on either side, and a large castletown on the inner (Springlands) side
+  function passWall(W_) {
+    const [ax, az] = toWorld(W_.a), [bx, bz] = toWorld(W_.b), [ix, iz] = W_.inner;
+    const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L, rot = Math.atan2(ux, uz);
+    const STONE = [0x8c857a, 0x7e776c, 0x968f84], H = 150, FL = 520;
+    const seg = (x0, z0, x1, z1, h, th, col) => {             // a wall stretch seated on the lowest ground beneath it
+      const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 40));
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n, x = x0 + (x1 - x0) * (t0 + t1) / 2, z = z0 + (z1 - z0) * (t0 + t1) / 2;
+        const g = Math.min(hW(x0 + (x1 - x0) * t0, z0 + (z1 - z0) * t0), hW(x0 + (x1 - x0) * t1, z0 + (z1 - z0) * t1), hW(x, z));
+        const gy = surf(Math.max(g, 0)), top = surf(Math.max(hW(x, z), 0)) + h;
+        put("box", x, z, th, top - gy + 8, Math.hypot(x1 - x0, z1 - z0) / n + 2, Math.atan2(x1 - x0, z1 - z0), pick(col), 0, { abs: gy - 8 });
+      }
+    };
+    // the great wall across the floor of the pass, with drum towers along it
+    seg(ax, az, bx, bz, H, 46, STONE);
+    for (let k = 0; k <= 6; k++) { const x = ax + dx * k / 6, z = az + dz * k / 6, g = surf(Math.max(hW(x, z), 0));
+      put("cyl", x, z, 56, H + 40, 56, 0, 0x8a8378, 0, { abs: g - 8 }); put("cone", x, z, 66, 40, 66, 0, 0x2f3540, 0, { abs: g + H + 32 }); }
+    // lesser walls running on up the mountainsides beyond each end
+    seg(ax, az, ax - ux * FL, az - uz * FL, 50, 18, STONE); seg(bx, bz, bx + ux * FL, bz + uz * FL, 50, 18, STONE);
+    for (const [ex, ez] of [[ax - ux * FL, az - uz * FL], [bx + ux * FL, bz + uz * FL]]) { const g = surf(Math.max(hW(ex, ez), 0));
+      put("cyl", ex, ez, 36, 80, 36, 0, 0x8a8378, 0, { abs: g - 6 }); put("cone", ex, ez, 44, 26, 44, 0, 0x2f3540, 0, { abs: g + 74 }); }
+    // the castle grows out of the wall itself: its great keep straddles the wall at the centre of the pass and juts out
+    // on the outer side, facing down the pass towards any invader; the gate runs through its foot
+    const cx = (ax + bx) / 2, cz = (az + bz) / 2, ox = -ix, oz = -iz;
+    const kx = cx + ox * 55, kz = cz + oz * 55, g0 = surf(Math.max(hW(kx, kz), 0));
+    put("box", kx, kz, 190, H + 30, 150, rot + Math.PI / 2, 0x9a9388, 0, { abs: g0 - 10 });                 // the keep's massive base, through the wall
+    for (const sd of [-1, 1]) { const x = kx + ux * 95 * sd + ox * 60, z = kz + uz * 95 * sd + oz * 60;   // twin outer towers flanking the gate
+      put("cyl", x, z, 70, H + 90, 70, 0, 0x8a8378, 0, { abs: g0 - 10 }); put("cone", x, z, 82, 50, 82, 0, 0x2f3540, 0, { abs: g0 + H + 80 }); }
+    let w = 150, y = g0 + H + 20;
+    for (let t = 0; t < 4; t++) { put("box", kx, kz, w, 40, w, rot + Math.PI / 4, t ? 0xe9e0cc : 0x8a8478, 0, { abs: y });
+      put("hip", kx, kz, w * 1.42, 22, w * 1.42, rot + Math.PI / 4, 0x2f3540, 0, { abs: y + 40 }); y += 48; w *= 0.74; }
+    put("box", kx, kz, 6, 70, 34, 0, HOUSE_COL.Vale, 0, { abs: y + 40 });
+    // the castletown, spreading back down the pass on the inner side
+    // the castletown sits on the castle's side of the wall, under its protection
+    const tx = cx + ox * 760, tz = cz + oz * 760;
+    cluster(tx, tz, 560, 190, "eastern"); cluster(cx + ox * 380, cz + oz * 380, 220, 40, "eastern");
+    windowLights(tx, tz, 560, 70, HEARTH, 22); windowLights(cx, cz, 120, 30, FIRE, 26, 20, H);
+    glows.push({ x: kx, y: y + 20, z: kz, size: 1400, col: FIRE, k: "fire" });
+    townLabels.push({ x: kx, z: kz, t: "The Northern Court" });
+  }
+
+  // ---- Sel Saro Abbey: a small abbey of pale stone at the foot of the cliffs: church, bell tower and cloister
+  function abbey(cx, cz, house) {
+    const g = Math.max(surf(Math.max(hW(cx, cz), 0)), 10),        // on its own stone platform at the head of the inlet
+      STONE = 0xe6dcc4, ROOF = 0x5a4636, rot = 0.35;
+    const at = (dx, dz) => [cx + dx * Math.cos(rot) + dz * Math.sin(rot), cz - dx * Math.sin(rot) + dz * Math.cos(rot)];
+    put("box", cx, cz, 130, g + 40, 130, rot, 0xcfc4ac, 0, { abs: -40, water: true });                        // paved terrace
+    { const [x, z] = at(0, -20); put("box", x, z, 26, 30, 70, rot, STONE, 0, { abs: g, water: true });       // the church nave
+      put("gable", x, z, 28, 16, 72, rot, ROOF, 0, { abs: g + 30, water: true }); }
+    { const [x, z] = at(0, -60); put("box", x, z, 16, 62, 16, rot, STONE, 0, { abs: g, water: true });      // the bell tower
+      put("pyr", x, z, 20, 22, 20, rot, ROOF, 0, { abs: g + 62, water: true }); put("box", x, z, 3, 18, 12, 0, HOUSE_COL[house] || 0xf2d22e, 0, { abs: g + 84, water: true }); }
+    { const [x, z] = at(0, 18); put("dome", x, z, 26, 18, 26, 0, 0xc9a43c, 0, { abs: g + 26, water: true }); put("cyl", x, z, 26, 26, 26, 0, STONE, 0, { abs: g, water: true }); }   // apse
+    for (const [dx, dz, w, d] of [[30, -10, 10, 50], [52, -10, 10, 50], [41, -34, 32, 10], [41, 14, 32, 10]]) {   // cloister ranges
+      const [x, z] = at(dx, dz); put("box", x, z, w, 14, d, rot, STONE, 0, { abs: g, water: true }); put("gable", x, z, w + 2, 6, d + 2, rot, ROOF, 0, { abs: g + 14, water: true }); }
+    { const [x, z] = at(41, -10); put("box", x, z, 14, 1, 14, rot, 0x4f7a3a, 0, { abs: g + 0.5, water: true }); }   // cloister garth
+    { const [x, z] = at(-34, 4); put("box", x, z, 18, 12, 30, rot, 0xd8ccb2, 0, { abs: g, water: true }); put("gable", x, z, 20, 6, 32, rot, ROOF, 0, { abs: g + 12, water: true }); }
+    const R = 176, segs = 16;                                       // its ring wall, with the abbey at the centre
+    for (let k = 0; k < segs; k++) { const a = k / segs * Math.PI * 2, x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R;
+      put("box", x, z, 2 * Math.PI * R / segs * 1.02, 29, 15, -a + Math.PI / 2, 0x9a9182, 0, hW(x, z) < 2 ? { abs: 0, water: true } : {});
+      if (k % 4 === 0) put("cyl", x, z, 37, 60, 37, 0, 0x8a8274, 0, hW(x, z) < 2 ? { abs: -10, water: true } : {}); }
+    windowLights(cx, cz, 50, 10, [1.0, 0.8, 0.5], 18, 4, 26);
+    glows.push({ x: cx, y: g + 60, z: cz, size: 700, col: FIRE, k: "fire" });
+  }
   const STYLE = (s) => s.dev === "bylong" ? "bylong" : s.dev === "outer" ? "outer" : s.cul === "european" ? "european" : "eastern";
   const townLabels = [];
   for (const s of meta.settlements) {
@@ -600,12 +770,17 @@ function start(meta, himg, idimg, limg, aimg) {
     const n = { large: 120, medium: 70, small: 30, port: 26 }[s.k] || 0, rad = { large: 520, medium: 400, small: 260, port: 240 }[s.k] || 200;
     const tit = s.castle === "Titan's roots";                     // the stump stands at the heart of its land, its port town apart
     const tcx = s.abbey ? cx - 200 : tit ? cx + 330 : cx, tcz = s.abbey ? cz + 160 : tit ? cz - 360 : cz;        // the abbey's port town sits a little apart
+    if (s.castle === "The Northern Court" && meta.landmarks.northwall) { passWall(meta.landmarks.northwall); continue; }
+    if (s.capital) { const [tx, tz] = toWorld(s.toward); const [fx, fz] = riverCity(cx, cz, tx, tz, (s.river || []).map(toWorld), s.house, s.fortuv && toWorld(s.fortuv)); townLabels.push({ x: fx, z: fz, t: s.castle }); continue; }
+    if (s.fort) { const [fx, fz] = toWorld(s.fort);                // the fortress stands in place of its island; no town beside it
+      seaFort(fx, fz, s.out[0], s.out[1], s.house, s.fortR || 150); townLabels.push({ x: fx, z: fz, t: s.castle }); continue; }
     if (n && s.dev === "vale_core" && (s.k === "large" || s.k === "medium")) planned(tcx, tcz, rad, n);
     else if (n) cluster(tcx, tcz, rad, n, s.castle === "Steel Redoubt" ? "forge" : st);
     if (s.castle) {
       const big = s.k === "large" || s.k === "medium";
       const off = s.abbey ? 0 : 1;                                  // Yyrodh Abbey stands exactly in its pocket of darkness
       if (tit) stumpCastle(cx, cz);
+      else if (s.castle === "Sel Saro Abbey") abbey(cx, cz, s.house);
       else if (s.castle === "Steel Redoubt") { castle(cx + 180, cz - 140, st, s.house, big, s.castle); forgeWorks(cx, cz); }
       else castle(cx + (n ? 180 * off : 0), cz - (n ? 140 * off : 0), st, s.house, big, s.castle);
       if (st === "outer") { barracks(cx, cz); windowLights(cx + 180, cz - 140, 230, 26, [1.0, 0.36, 0.12], 36); }
@@ -625,7 +800,7 @@ function start(meta, himg, idimg, limg, aimg) {
   }
   for (const l of meta.lights) {
     const [cx, cz] = toWorld(l.uv);
-    if (l.k === "volcano") glows.push({ x: cx, y: surf(hW(cx, cz)) + 60, z: cz, size: l.name === "False Light" ? 2600 : 1500, col: LAVA, k: "lava" });
+    // volcanoes: no summit beacon; their light comes from the lava streams below
     if (l.k === "earthfire") glows.push({ x: cx, y: surf(hW(cx, cz)) + 40, z: cz, size: 2200, col: [1.0, 0.55, 0.3], k: "lava" });
   }
 
@@ -740,25 +915,41 @@ function start(meta, himg, idimg, limg, aimg) {
   }
   if (whaleObjs.length) marks.push({ x: whaleObjs[0].x, y: 200, z: whaleObjs[0].z, t: "Great whales of the Abyss" });
 
-  // ---- shipping: boats moored at every port, and trading ships on the sea lanes between them (Inner–Outer Isles first)
-  const HULL = [0x4a3626, 0x3a2a1e, 0x5a4030], SAIL = [0xd8cfb8, 0xc9b99a, 0x9a3a2a, 0xe4dcc6, 0x2f4a5a];
+  // ---- shipping: boats moored at every port, and trading ships on the sea lanes between them (Inner–Outer Isles first).
+  //      Vale and the eastern houses sail Japanese-style ships (lacquered hull, stern house, one great battened sail);
+  //      Outer Blood and the western houses sail 1400s carracks (fore- and aftcastles, square sails, a lateen mizzen).
+  //      parts: [across, up, along, w, h, d, colour, pitch]  (box base at y = 0)
+  const SHIP = {
+    jp: [[0, -5, 0, 20, 11, 62, 0x2a1e18], [0, 6, -22, 18, 12, 16, 0x5a2a1e], [0, 18, -22, 24, 5, 20, 0x2a2a2e],
+         [0, 4, 2, 3, 64, 3, 0x3a2c20], [0, 20, 4, 34, 40, 2, 0xe9e1c9], [0, 29, 5, 36, 1.6, 3, 0x3a2c20],
+         [0, 39, 5, 36, 1.6, 3, 0x3a2c20], [0, 49, 5, 36, 1.6, 3, 0x3a2c20]],
+    eu: [[0, -6, 0, 24, 14, 58, 0x5a3a24], [0, 8, 22, 22, 10, 14, 0x6a4630], [0, 8, -22, 22, 16, 18, 0x6a4630],
+         [0, 6, 2, 3.5, 74, 3.5, 0x3a2c20], [0, 24, 2, 38, 34, 2, 0xe6dcc4], [0, 9, 24, 2.5, 46, 2.5, 0x3a2c20],
+         [0, 28, 24, 22, 18, 2, 0x8a2020], [0, 12, -26, 1.5, 30, 24, 0xd8cfb8, 0.55]]
+  };
+  const partAt = (x, z, rot, [dx, dy, dz]) => [x + dx * Math.cos(rot) + dz * Math.sin(rot), z - dx * Math.sin(rot) + dz * Math.cos(rot), dy];
   for (const m of LM.moorings || []) {
-    const [x, z] = toWorld(m.uv), k = 1.1 + rnd() * 0.5;
-    put("box", x, z, 12 * k, 7 * k, 34 * k, m.rot, pick(HULL), 0, { abs: -2, water: true });
-    put("box", x, z, 2.2, 30 * k, 2.2, m.rot, 0x3a2c20, 0, { abs: 4, water: true });
-    put("box", x, z, 1.2, 15 * k, 18 * k, m.rot, pick(SAIL), 0, { abs: 4 + 12 * k, water: true });
-    lightPts.push([x, 14, z, [1.0, 0.7, 0.35], 12, rnd() * 100]);
+    const [x, z] = toWorld(m.uv), k = 0.75 + rnd() * 0.3, parts = SHIP[m.s || "jp"];
+    for (const pt of parts) { const [px, pz, dy] = partAt(x, z, m.rot, pt.map((v, i) => i < 3 ? v * k : v));
+      lists.box.push([px, 0.6 + dy, pz, pt[3] * k, pt[4] * k, pt[5] * k, m.rot, pt[6], pt[7] || 0, 0]); }
+    lightPts.push([x, 0.6 + 30 * k, z, [1.0, 0.7, 0.35], 12, rnd() * 100]);
+  }
+  for (const [u, v, heat] of LM.lava || []) {                   // a low, flickering glow along every lava stream
+    const [x, z] = toWorld([u, v]); lightPts.push([x, surf(Math.max(hW(x, z), 0)) + 6, z, [1.0, 0.38 + 0.2 * heat, 0.08], 16 + 10 * heat, rnd() * 100]);
   }
   const ships = [];
   for (const r of LM.routes || []) {
     const P = r.pts.map(toWorld), cum = [0];
     for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
     const L = cum[cum.length - 1]; if (L < 300) continue;
-    for (let n = 0; n < (r.io ? 2 : 1); n++) ships.push({ P, cum, L, ph: rnd() * 2 * L, v: 40 + rnd() * 30, hull: pick(HULL), sail: pick(SAIL), k: 1.1 + rnd() * 0.4 });
+    const sty = r.s || ["jp", "jp"];
+    if (r.ferry) { ships.push({ P, cum, L, ph: 0, v: 55, s: sty[0], k: 1.25 }); continue; }   // the Hidden Bay ferry: always one ship on it
+    for (let n = 0; n < (r.io ? 2 : 1); n++) ships.push({ P, cum, L, ph: rnd() * 2 * L, v: 40 + rnd() * 30, s: sty[n % 2], k: 1.15 + rnd() * 0.3 });
   }
-  const shipMesh = new THREE.InstancedMesh(GEOS.box, instMat(), Math.max(ships.length * 3, 1));
+  const NP = 8;
+  const shipMesh = new THREE.InstancedMesh(GEOS.box, instMat(), Math.max(ships.length * NP, 1));
   shipMesh.frustumCulled = false; scene.add(shipMesh);
-  ships.forEach((sh, i) => { shipMesh.setColorAt(i * 3, new THREE.Color(sh.hull)); shipMesh.setColorAt(i * 3 + 1, new THREE.Color(0x3a2c20)); shipMesh.setColorAt(i * 3 + 2, new THREE.Color(sh.sail)); });
+  ships.forEach((sh, i) => SHIP[sh.s].forEach((pt, j) => shipMesh.setColorAt(i * NP + j, new THREE.Color(pt[6]))));
   if (ships.length) shipMesh.instanceColor.needsUpdate = true;
   const shipLamps = { geo: null, pos: null };
   function updateShips(t) {
@@ -768,12 +959,13 @@ function start(meta, himg, idimg, limg, aimg) {
       let j = 1; while (j < sh.cum.length - 1 && sh.cum[j] < d) j++;
       const a = sh.P[j - 1], b = sh.P[j], f = (d - sh.cum[j - 1]) / Math.max(sh.cum[j] - sh.cum[j - 1], 1e-6);
       const x = a[0] + (b[0] - a[0]) * f, z = a[1] + (b[1] - a[1]) * f;
-      const rot = Math.atan2(b[0] - a[0], b[1] - a[1]) + (back ? Math.PI : 0), k = sh.k, roll = Math.sin(t * 0.9 + sh.ph) * 0.05;
-      Q.setFromEuler(E.set(0, rot, roll, "YXZ"));
-      P.set(x, -3, z); S.set(22 * k, 11 * k, 70 * k); M.compose(P, Q, S); shipMesh.setMatrixAt(i * 3, M);
-      P.set(x, 6, z); S.set(3.5, 62 * k, 3.5); M.compose(P, Q, S); shipMesh.setMatrixAt(i * 3 + 1, M);
-      P.set(x, 8 + 24 * k, z); S.set(2, 34 * k, 44 * k); M.compose(P, Q, S); shipMesh.setMatrixAt(i * 3 + 2, M);
-      if (shipLamps.pos) shipLamps.pos.setXYZ(i, x, 28 * k, z);
+      const rot = Math.atan2(b[0] - a[0], b[1] - a[1]) + (back ? Math.PI : 0), k = sh.k, roll = Math.sin(t * 0.9 + sh.ph) * 0.04;
+      SHIP[sh.s].forEach((pt, q) => {
+        const [px, pz, dy] = partAt(x, z, rot, [pt[0] * k, pt[1] * k, pt[2] * k]);
+        Q.setFromEuler(E.set(pt[7] || 0, rot, roll, "YXZ")); P.set(px, 0.6 + dy, pz); S.set(pt[3] * k, pt[4] * k, pt[5] * k);
+        M.compose(P, Q, S); shipMesh.setMatrixAt(i * NP + q, M);
+      });
+      if (shipLamps.pos) shipLamps.pos.setXYZ(i, x, 34 * k, z);
     });
     shipMesh.instanceMatrix.needsUpdate = true;
     if (shipLamps.pos) shipLamps.pos.needsUpdate = true;
@@ -803,7 +995,7 @@ function start(meta, himg, idimg, limg, aimg) {
   const winMat = pointsLayer(lightPts, 0.55);
   const shipLampMat = pointsLayer(ships.map((sh, i) => [0, -999, 0, [1.0, 0.72, 0.38], 16, i * 5.3]), 0.55);   // ship lanterns
   shipLamps.pos = shipLampMat.userData.geo.attributes.position;
-  const glowMat = pointsLayer(glows.filter((g) => g.k !== "candle").map((g, i) => [g.x, g.y, g.z, g.col.map((v) => v * 0.55), g.size, i * 7.1]), 0.5);
+  const glowMat = pointsLayer(glows.filter((g) => g.k !== "candle").map((g, i) => [g.x, g.y, g.z, g.col.map((v) => v * (g.k === "fire" || g.k === "city" ? 0.16 : 0.55)), g.size, i * 7.1]), 0.5);   // town glows ~1/10 of a tower
   const coreMat = pointsLayer(glows.filter((g) => g.core && g.k !== "candle").map((g, i) => [g.x, g.y, g.z, [1, 0.95, 0.8], g.core, i * 3.3]), 1.2);
   // the Candle Towers' own flames, on their slow two-minute cycle
   const candleGlowMat = pointsLayer(glows.filter((g) => g.k === "candle").map((g, i) => [g.x, g.y, g.z, g.col.map((v) => v * 0.9), g.size, i * 7.1]), 0.5);
@@ -898,8 +1090,8 @@ function start(meta, himg, idimg, limg, aimg) {
 
   // ---- view, controls, loop ----
   const home = () => {
-    const [mx, mz] = toWorld([0.47, 0.5]);
-    controls.target.set(mx, 0, mz); camera.position.set(mx + 2500, 21000, mz + 26000); controls.update();
+    const [mx, mz] = toWorld([0.5, 0.5]);                       // the whole realm from far above, flat: zoom in to raise the land
+    controls.target.set(mx, 0, mz); camera.position.set(mx, 70000, mz + 60); controls.update();
   };
   home();
   $("#reset").addEventListener("click", home);
@@ -921,6 +1113,8 @@ function start(meta, himg, idimg, limg, aimg) {
     camera.aspect = host.clientWidth / host.clientHeight; camera.updateProjectionMatrix();
     for (const m of [winMat, glowMat, coreMat, candleGlowMat, candleCoreMat, smokeMat, shipLampMat]) if (m) m.uniforms.uScale.value = renderer.domElement.height / 2;
   });
+  let winterOn = false;
+  $("#winter").addEventListener("change", (e) => { winterOn = e.target.checked; });
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const clock = new THREE.Clock();
   $("#loading").hidden = true;
@@ -929,7 +1123,7 @@ function start(meta, himg, idimg, limg, aimg) {
     const t = reduce ? 0 : clock.getElapsedTime();
     uniforms.uTime.value = t;
     // Candle Towers wax and wane: full brightness down to 25% and back, every two minutes
-    const ck = 0.625 + 0.375 * Math.cos(t * Math.PI * 2 / 120);
+    const ck = (0.625 + 0.375 * Math.cos(t * Math.PI * 2 / 120)) * (winterOn ? 0.25 : 1);   // winter: a quarter of the towers' light
     uniforms.uCandleK.value = ck; candleGlowMat.uniforms.uMul.value = ck; candleCoreMat.uniforms.uMul.value = 0.4 + 0.6 * ck;
     beamMeshes.forEach((b, i) => { b.rotation.y = t * 0.6 + i * 2.1; });
     if (whaleObjs.length) updateWhales(t);
