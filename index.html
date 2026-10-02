@@ -1,5 +1,5 @@
-<title>The Isles of Darkness</title>
-<meta name="description" content="Web edition of the Isles of Darkness QGIS map: terrain, houses, seas, rivers and impassable borders.">
+<title>Sunless Sea</title>
+<meta name="description" content="Web edition of the Sunless Sea QGIS project: terrain, houses, seas, rivers and impassable borders.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap">
@@ -128,7 +128,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 <aside class="panel" id="panel" aria-label="Layers">
   <header>
     <div>
-      <h1>The Isles of Darkness</h1>
+      <h1>Sunless Sea</h1>
       <p class="sub">Territories, houses &amp; seas</p>
     </div>
     <button type="button" class="collapse" id="collapse" aria-expanded="true" aria-controls="layers" title="Hide layers">–</button>
@@ -138,19 +138,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
   </div>
   <footer>
     <a class="view" id="to3d" href="3d/">
-      <img src="data/relief-thumb.jpg" alt="Candle-lit 3D relief of the Isles of Darkness" width="560" height="243">
+      <img src="data/relief-thumb.jpg" alt="Candle-lit 3D relief of the Sunless Sea" width="560" height="243">
       <span class="vlab"><span>Explore the realm in 3D →</span><small>RELIEF</small></span>
     </a>
     <h2 class="gis-h">GIS data</h2>
     <div class="gis">
-      <a class="dl" href="downloads/IslesofDarkness.gpkg" download title="One GeoPackage: drag into QGIS and every layer arrives styled">
+      <a class="dl" href="downloads/SunlessSea.gpkg" download title="One GeoPackage: drag into QGIS and every layer arrives styled">
         <b><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5v8.2M4.6 6.6 8 10l3.4-3.4M2.5 12.2v2.3h11v-2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Lite version</b><span class="sz">.gpkg · 4.5 MB</span>
       </a>
-      <a class="dl" href="downloads/IslesMap_QGIS.zip" download title="The complete QGIS project with its GeoPackage and a readme">
+      <a class="dl" href="downloads/SunlessSea_QGIS.zip" download title="The complete QGIS project with its GeoPackage and a readme">
         <b><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5v8.2M4.6 6.6 8 10l3.4-3.4M2.5 12.2v2.3h11v-2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Full data</b><span class="sz">QGIS project · 5.5 MB</span>
       </a>
     </div>
-    <p class="dlnote">Lite: one file, drag it into QGIS and every layer arrives styled. Full: the original QGIS project, unzip and open <i>IslesMap.qgz</i>. <a href="downloads/IslesOfDarkness_map.png" download>Map image (PNG)</a></p>
+    <p class="dlnote">Lite: one file, drag it into QGIS and every layer arrives styled. Full: the original QGIS project, unzip and open <i>SunlessSea.qgz</i>. <a href="downloads/SunlessSea_map.png" download>Map image (PNG)</a></p>
     <p>Click a territory or sea for its record. <span class="scale" id="scale"></span></p>
   </footer>
 </aside>
@@ -160,7 +160,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 (() => {
 "use strict";
 // ---------------------------------------------------------------------------
-// Symbology transcribed from IslesMap.qgz. QGIS sizes are millimetres on screen;
+// Symbology transcribed from SunlessSea.qgz. QGIS sizes are millimetres on screen;
 // the web map keeps them screen-fixed too (1 mm = 96/25.4 px).
 // ---------------------------------------------------------------------------
 const MM = 96 / 25.4;

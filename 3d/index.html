@@ -1,5 +1,5 @@
-<title>Isles of Darkness Relief</title>
-<meta name="description" content="Interactive 3D relief of the Isles of Darkness, a sunless realm lit by its Candle Towers, castle fires and village hearths.">
+<title>Sunless Sea Relief</title>
+<meta name="description" content="Interactive 3D relief of the Sunless Sea, a sunless realm lit by its Candle Towers, castle fires and village hearths.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap">
@@ -92,7 +92,7 @@ body { margin: 0; background: var(--void); color: var(--ink); font-family: var(-
 
 <aside class="panel" aria-label="Relief controls">
   <header>
-    <h1>The Isles of Darkness</h1>
+    <h1>Sunless Sea</h1>
     <p class="sub">A sunless realm lit by four Candle Towers. About 1,000 km across; relief exaggerated <span id="exag">8</span>×.</p>
   </header>
   <div class="controls">
@@ -103,7 +103,7 @@ body { margin: 0; background: var(--void); color: var(--ink); font-family: var(-
   <ul class="key" id="key"></ul>
   <footer>
     <a class="view" href="../" id="back">
-      <img src="data/flat-thumb.jpg" alt="The GIS map of the Isles of Darkness" width="560" height="243">
+      <img src="data/flat-thumb.jpg" alt="The GIS map of the Sunless Sea" width="560" height="243">
       <span class="vlab"><span>← GIS Map</span><small>QGIS SYMBOLOGY</small></span>
     </a>
     <button type="button" class="btn" id="reset">Reset view</button>
@@ -343,7 +343,7 @@ function start(meta, himg, idimg, limg, aimg) {
       lightPts.push([x, surf(g) + minH + rnd() * (maxH - minH), z, col, size * (0.6 + rnd() * 0.8), rnd() * 100]);
     }
   }
-  const glows = [], towers = [], marks = [], beams = [], clearings = [];
+  const glows = [], towers = [], marks = [], beams = [], clearings = [], wheels = [];
   const cleared = (x, z) => clearings.some((c) => Math.hypot(x - c.x, z - c.z) < c.r);
   const flatEnough = (x, z, r = 30) => {                      // keep buildings off cliff edges and steep ground
     const a = [hW(x - r, z), hW(x + r, z), hW(x, z - r), hW(x, z + r), hW(x, z)];
@@ -584,9 +584,18 @@ function start(meta, himg, idimg, limg, aimg) {
     if (!best) return;
     const { r, a } = best, x = cx + Math.cos(a) * (r - 6), z = cz + Math.sin(a) * (r - 6);
     const rot = Math.atan2(Math.cos(a), Math.sin(a)), ux = Math.sin(rot), uz = Math.cos(rot), WR = 72;
-    put("wheel", x, z, 26, WR * 2, WR * 2, rot, 0x4a3828, 0, { abs: WR * 0.55, water: true });
+    // the great wheel turns: its own little mesh, spun about its axle every frame
+    const hub = new THREE.Group(); hub.position.set(x, WR * 0.55, z); hub.rotation.y = rot; scene.add(hub);
+    const spin = new THREE.Group(); hub.add(spin); wheels.push(spin);
+    const parts = new THREE.InstancedMesh(GEOS.box, instMat(), 13), M4 = new THREE.Matrix4(), Q4 = new THREE.Quaternion(), E4 = new THREE.Euler();
+    M4.compose(new THREE.Vector3(0, 0, 0), Q4.setFromEuler(E4.set(0, 0, Math.PI / 2)), new THREE.Vector3(WR * 2, 26, WR * 2));
+    parts.geometry = GEOS.box; const wheelDisc = new THREE.InstancedMesh(GEOS.wheel, instMat(), 1);
+    wheelDisc.setMatrixAt(0, new THREE.Matrix4().makeScale(26, WR * 2, WR * 2)); wheelDisc.setColorAt(0, new THREE.Color(0x4a3828)); spin.add(wheelDisc);
     for (let q = 0; q < 12; q++) { const f = q / 12 * Math.PI * 2;
-      put("box", x + ux * Math.cos(f) * (WR + 2), z + uz * Math.cos(f) * (WR + 2), 32, 18, 5, rot, 0x2f241a, 0, { abs: WR * 0.55 + Math.sin(f) * (WR + 2) - 7, water: true, rx: -f }); }
+      M4.compose(new THREE.Vector3(0, Math.sin(f) * (WR + 2) - 9, Math.cos(f) * (WR + 2)), Q4.setFromEuler(E4.set(-f, 0, 0)), new THREE.Vector3(32, 18, 5));
+      parts.setMatrixAt(q, M4); parts.setColorAt(q, new THREE.Color(0x2f241a)); }
+    parts.count = 12; spin.add(parts);
+    for (const m of [parts, wheelDisc]) { m.frustumCulled = false; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
     const mx = cx + Math.cos(a) * (r - 60), mz = cz + Math.sin(a) * (r - 60);
     put("box", mx, mz, 60, 34, 48, rot, 0x6a6b6f); put("gable", mx, mz, 62, 18, 50, rot, 0x34363a, 34);
   }
@@ -1128,13 +1137,14 @@ function start(meta, himg, idimg, limg, aimg) {
     beamMeshes.forEach((b, i) => { b.rotation.y = t * 0.6 + i * 2.1; });
     if (whaleObjs.length) updateWhales(t);
     if (ships.length) updateShips(t);
+    for (const w of wheels) w.rotation.x = -t * 0.6;           // the mill wheel turning with the water
     controls.update();
     const floor = surf(Math.max(hW(camera.position.x, camera.position.z), 0)) + 150;
     if (camera.position.y < floor) camera.position.y = floor;
     renderer.render(scene, camera);
     placeLabels();
   })();
-  window.__three = { camera, controls, scene, uniforms };
+  window.__three = { camera, controls, scene, uniforms, wheels };
 }
 })();
 </script>
