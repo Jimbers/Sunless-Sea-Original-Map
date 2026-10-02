@@ -1,6 +1,6 @@
 # The Sunless Sea: web map
 
-A MapLibre GL web edition of the QGIS project `SunlessSea.qgz`.
+A MapLibre GL web edition of the QGIS project `SunlessSea.qgz`, built to chart an original setting inspired by the Sunless Sea.
 
 - `index.html` is the whole app. MapLibre is loaded from unpkg, and labels use EB Garamond from Google Fonts.
 - `data/` holds the layers, exported from `SunlessSea.gdb` and `ClansEditable.gpkg` and converted to WGS 84 GeoJSON:
