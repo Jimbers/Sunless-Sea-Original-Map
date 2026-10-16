@@ -45,6 +45,11 @@ body { margin: 0; background: var(--void); color: var(--ink); font-family: var(-
 .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: var(--ink-dim); transition: transform .2s, background .2s; }
 .toggle:checked { background: #6b5422; }
 .toggle:checked::after { transform: translateX(17px); background: var(--flame); }
+.seg { display: flex; border: 1px solid var(--rule); border-radius: 11px; overflow: hidden; }
+.seasonrow { grid-template-columns: auto 1fr; gap: 14px; cursor: default; }
+.seg button { appearance: none; border: 0; background: #2b313b; color: var(--ink-dim); font: .8rem var(--f-ui); padding: 5px 0; flex: 1; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: #6b5422; color: var(--ink); }
 .toggle:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
 .key { list-style: none; margin: 0; padding: 8px 16px 10px; border-top: 1px solid var(--rule); display: grid; gap: 5px; font-size: .84rem; }
 .key li { display: grid; grid-template-columns: 14px 1fr auto; gap: 9px; align-items: center; }
@@ -97,7 +102,8 @@ body { margin: 0; background: var(--void); color: var(--ink); font-family: var(-
   </header>
   <div class="controls">
     <label class="sw" for="sun"><div><span>Sun</span><small>Light the whole realm to read the land</small></div><input class="toggle" type="checkbox" id="sun"></label>
-    <label class="sw" for="winter"><div><span>Winter</span><small>The Candle Towers burn at a quarter of their light</small></div><input class="toggle" type="checkbox" id="winter"></label>
+    <div class="sw seasonrow" role="group" aria-labelledby="seasonL"><span id="seasonL">Season</span>
+      <div class="seg" id="season"><button type="button" data-k="1" aria-pressed="true">Summer</button><button type="button" data-k="0.25" aria-pressed="false">Winter</button><button type="button" data-k="0" aria-pressed="false">Dead</button></div></div>
     <label class="sw" for="lbls"><div><span>Names</span><small>Regions, towers, castles and landmarks</small></div><input class="toggle" type="checkbox" id="lbls" checked></label>
   </div>
   <ul class="key" id="key"></ul>
@@ -172,7 +178,7 @@ function start(meta, himg, idimg, limg, aimg) {
     uTime: { value: 0 }, uSun: { value: 0 }, uSunDir: { value: new THREE.Vector3(-0.45, 0.75, -0.48).normalize() },
     uLight: { value: null }, uAlbedo: { value: null }, uFogCol: { value: new THREE.Color(0x04060a) }, uFogDen: { value: 0.000028 },
     uExt: { value: new THREE.Vector2(W, H) },
-    uCandle: { value: new THREE.Vector3(...CANDLE) }, uCandleK: { value: 1 }, uFire: { value: new THREE.Vector3(...FIRE) }, uLava: { value: new THREE.Vector3(...LAVA) }
+    uCandle: { value: new THREE.Vector3(...CANDLE) }, uCandleK: { value: 1 }, uAmb: { value: 0 }, uFire: { value: new THREE.Vector3(...FIRE) }, uLava: { value: new THREE.Vector3(...LAVA) }
   };
   const tex = (img) => { const t = new THREE.Texture(img); t.needsUpdate = true; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
   uniforms.uAlbedo.value = tex(aimg); uniforms.uLight.value = tex(limg);
@@ -180,7 +186,7 @@ function start(meta, himg, idimg, limg, aimg) {
   const COMMON = `
     uniform sampler2D uLight; uniform float uTime; uniform float uSun; uniform vec3 uSunDir;
     uniform vec3 uFogCol; uniform float uFogDen; uniform vec2 uExt;
-    uniform vec3 uCandle; uniform vec3 uFire; uniform vec3 uLava; uniform float uCandleK;
+    uniform vec3 uCandle; uniform vec3 uFire; uniform vec3 uLava; uniform float uCandleK; uniform float uAmb;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     vec3 realmLight(vec3 wp) {
       vec2 uv = vec2(wp.x / uExt.x + 0.5, 0.5 - wp.z / uExt.y);
@@ -215,7 +221,7 @@ function start(meta, himg, idimg, limg, aimg) {
         vec3 a = pow(texture2D(uAlbedo, vUv).rgb, vec3(2.2));
         vec3 n = normalize(vN);
         vec3 sun = uSun * (vec3(0.18, 0.2, 0.24) + vec3(1.0, 0.96, 0.9) * 1.15 * max(dot(n, uSunDir), 0.0));
-        vec3 c = a * (vec3(0.010, 0.013, 0.02) + realmLight(vW) * 1.25 + sun);
+        vec3 c = a * (vec3(0.010, 0.013, 0.02) * uAmb + realmLight(vW) * 1.25 + sun);
         vec3 lv = texture2D(uLight, vUv).rgb; c += uLava * pow(lv.b, 6.0) * 1.6 * (0.8 + 0.2 * sin(uTime * 1.3));
         gl_FragColor = vec4(finish(c, distance(cameraPosition, vW)), 1.0);
       }`
@@ -233,7 +239,7 @@ function start(meta, himg, idimg, limg, aimg) {
         vec3 L = realmLight(vW);
         float r = n2(vW.xz / 900.0 + vec2(uTime * 0.01, uTime * 0.006));
         float glint = 0.0;
-        vec3 c = vec3(0.003, 0.007, 0.013) + L * vec3(0.55, 0.62, 0.75) * (0.05 + 0.03 * r);
+        vec3 c = vec3(0.003, 0.007, 0.013) * uAmb + L * vec3(0.55, 0.62, 0.75) * (0.05 + 0.03 * r);
         vec3 V = normalize(cameraPosition - vW);
         c += uSun * (vec3(0.05, 0.13, 0.2) + vec3(0.5, 0.55, 0.6) * pow(1.0 - max(V.y, 0.0), 4.0) * 0.4 + vec3(0.9) * glint * 0.03);
         gl_FragColor = vec4(finish(c, distance(cameraPosition, vW)), 1.0);
@@ -254,7 +260,7 @@ function start(meta, himg, idimg, limg, aimg) {
       void main() { vec3 a = pow(vC, vec3(2.2)); vec3 n = normalize(vN);
         vec3 L = realmLight(vW) * (0.55 + 0.45 * max(n.y, 0.3));
         vec3 sun = uSun * (vec3(0.2) + vec3(1.0, 0.96, 0.9) * max(dot(n, uSunDir), 0.0));
-        gl_FragColor = vec4(finish(a * (vec3(0.012) + L * 1.4 + sun), distance(cameraPosition, vW)), 1.0); }`
+        gl_FragColor = vec4(finish(a * (vec3(0.012) * uAmb + L * 1.4 + sun), distance(cameraPosition, vW)), 1.0); }`
   });
   const GEOS = {
     box: new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
@@ -294,7 +300,7 @@ function start(meta, himg, idimg, limg, aimg) {
       else if (style !== "bylong") put("hip", x, z, Math.max(w, d) * 1.3, hh * 0.75, Math.max(w, d) * 1.3, rot, pick(pal.roof), hh);
     }
   }
-  function castle(cx, cz, style, house, big, name) {
+  function castle(cx, cz, style, house, big, name, opts = {}) {
     const s = big ? 1.5 : 1.1;
     // seat the keep on the rock: on small sharp islands the mesh sits lower than the true ground, so a stone
     // plinth runs from the lowest ground around the footprint up to the keep's floor
@@ -310,8 +316,11 @@ function start(meta, himg, idimg, limg, aimg) {
     }
     const pal = PALETTE[style];
     if (style === "european") {
-      put("box", cx, cz, 70 * s, 90 * s, 70 * s, 0, pick(pal.wall));
-      for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { put("cyl", cx + dx * 55 * s, cz + dz * 55 * s, 30 * s, 120 * s, 30 * s, 0, pick(pal.wall)); put("cone", cx + dx * 55 * s, cz + dz * 55 * s, 36 * s, 40 * s, 36 * s, 0, 0x5a3a2a, 120 * s); }
+      const kw = pick(pal.wall);                                    // a square keep with its corner towers built into its corners
+      put("box", cx, cz, 70 * s, 90 * s, 70 * s, 0, kw);
+      for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { put("cyl", cx + dx * 33 * s, cz + dz * 33 * s, 30 * s, 112 * s, 30 * s, 0, kw); put("cone", cx + dx * 33 * s, cz + dz * 33 * s, 36 * s, 38 * s, 36 * s, 0, 0x5a3a2a, 112 * s); }
+      put("box", cx + 56 * s, cz, 44 * s, 52 * s, 50 * s, 0, kw); put("gable", cx + 56 * s, cz, 46 * s, 22 * s, 52 * s, 0, 0x5a3a2a, 52 * s);   // the great hall, abutting the keep
+      put("box", cx - 52 * s, cz, 34 * s, 64 * s, 30 * s, 0, kw); put("box", cx - 52 * s, cz, 38 * s, 8 * s, 34 * s, 0, 0x6a5a48, 64 * s);  // the gate tower
     } else {
       let w = 90 * s, y = 0;
       for (let t = 0; t < 4; t++) {                                   // tiered keep, a hipped roof at every level
@@ -320,11 +329,15 @@ function start(meta, himg, idimg, limg, aimg) {
         y += 40 * s; w *= 0.74;
       }
     }
-    const R = (style === "outer" ? 210 : 160) * s, segs = style === "outer" ? 22 : 16;
-    for (let k = 0; k < segs; k++) {
-      const a = k / segs * Math.PI * 2, x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R;
-      put("box", x, z, 2 * Math.PI * R / segs * 1.02, (style === "outer" ? 42 : 26) * s, 14 * s, -a + Math.PI / 2, style === "outer" ? 0x3b3838 : 0x9a9182);
-      if (k % (style === "outer" ? 2 : 4) === 0) put("cyl", x, z, 34 * s, (style === "outer" ? 80 : 55) * s, 34 * s, 0, style === "outer" ? 0x2e2b2b : 0x8a8274);
+    if (opts.noRing) {}
+    else if (opts.mountain) mountainWalls(cx, cz, style);
+    else {
+      const R = (style === "outer" ? 210 : 160) * s, segs = style === "outer" ? 22 : 16;
+      for (let k = 0; k < segs; k++) {
+        const a = k / segs * Math.PI * 2, x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R;
+        put("box", x, z, 2 * Math.PI * R / segs * 1.02, (style === "outer" ? 42 : 26) * s, 14 * s, -a + Math.PI / 2, style === "outer" ? 0x3b3838 : 0x9a9182);
+        if (k % (style === "outer" ? 2 : 4) === 0) put("cyl", x, z, 34 * s, (style === "outer" ? 80 : 55) * s, 34 * s, 0, style === "outer" ? 0x2e2b2b : 0x8a8274);
+      }
     }
     if (house && HOUSE_COL[house] !== undefined) put("box", cx, cz, 6, 60 * s, 30 * s, 0, HOUSE_COL[house], (style === "european" ? 125 : 165) * s);
   }
@@ -344,6 +357,106 @@ function start(meta, himg, idimg, limg, aimg) {
     }
   }
   const glows = [], towers = [], marks = [], beams = [], clearings = [], wheels = [];
+  // ---- curtain walls drawn as real defences: steep ground and cliffs are left as the natural barrier, high ground already
+  //      above the wall-walk needs no wall, and every stretch that is built sits on the lowest ground beneath it and stands
+  //      a full wall-height above the highest. Towers anchor the ends of each run against the rock.
+  const steepAt = (x, z) => {
+    const d = 18, gx = surf(Math.max(hW(x + d, z), 0)) - surf(Math.max(hW(x - d, z), 0)), gz = surf(Math.max(hW(x, z + d), 0)) - surf(Math.max(hW(x, z - d), 0));
+    return Math.hypot(gx, gz) / (2 * d);
+  };
+
+
+  // walls built into the mountains around a castle in a valley: a ring laid along the slopes a little above the valley floor,
+  // following the ground; the stretches over sheer rock are left out (the cliff is the wall), giving a broken, dashed line
+  function mountainWalls(cx, cz, style) {
+    const floor = surf(Math.max(hW(cx, cz), 0)), N = 40, pts = [];
+    for (let k = 0; k < N; k++) {
+      const a = k / N * Math.PI * 2; let r = 160;
+      while (r < 650 && surf(Math.max(hW(cx + Math.cos(a) * r, cz + Math.sin(a) * r), 0)) < floor + 45) r += 10;
+      pts.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r]);
+    }
+    const col = style === "european" ? 0x8a8274 : 0x9a9182, tcol = 0x7a7266;
+    for (let k = 0; k < N; k++) {
+      const [x0, z0] = pts[k], [x1, z1] = pts[(k + 1) % N], L = Math.hypot(x1 - x0, z1 - z0), m = Math.max(1, Math.ceil(L / 22));
+      let built = false;
+      for (let q = 0; q < m; q++) {
+        const ax = x0 + (x1 - x0) * q / m, az = z0 + (z1 - z0) * q / m, bx = x0 + (x1 - x0) * (q + 1) / m, bz = z0 + (z1 - z0) * (q + 1) / m;
+        const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+        if (steepAt(mx, mz) > 3.2 || hW(mx, mz) < 2 || (q % 7 === 6)) continue;   // sheer rock, water, and the odd break: a broken line along the slopes
+        const gm = surf(Math.max(hW(mx, mz), 0));                                // follow the slope: each stretch stands on its own ground
+        put("box", mx, mz, 14, 52, Math.hypot(bx - ax, bz - az) + 2, Math.atan2(bx - ax, bz - az), col, 0, { abs: gm - 14 }); built = true;
+      }
+      if (built && k % 3 === 0) { const g = surf(Math.max(hW(x0, z0), 0)); put("cyl", x0, z0, 26, 58, 26, 0, tcol, 0, { abs: g - 6 }); put("cone", x0, z0, 30, 18, 30, 0, 0x5a3a2a, 0, { abs: g + 52 }); }
+    }
+  }
+  function defenseRing(cx, cz, refY, H, Rmin, Rmax, o = {}) {
+    const N = 48, pts = [];
+    for (let k = 0; k < N; k++) {
+      const a = k / N * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a); let r = Rmin, closed = false;
+      for (; r <= Rmax; r += 12) { const x = cx + ca * r, z = cz + sa * r, gy = surf(Math.max(hW(x, z), 0));
+        if (seaAt(x, z) || gy > refY + H * 0.9 || steepAt(x, z) > 1.0) { closed = true; break; } }
+      pts.push({ x: cx + ca * Math.min(r, Rmax), z: cz + sa * Math.min(r, Rmax), closed });
+    }
+    const col = o.col || 0x9a9182, towerCol = o.towerCol || 0x8a8274, th = o.th || 16, tw = o.tower || 34, runs = [];
+    let run = null;
+    const start = pts.findIndex((p) => p.closed);                   // begin at a natural barrier so runs end on the rock
+    for (let i = 0; i < N; i++) {
+      const A = pts[(start < 0 ? 0 : start) + i < N ? (start < 0 ? 0 : start) + i : (start < 0 ? 0 : start) + i - N];
+      const B = pts[((start < 0 ? 0 : start) + i + 1) % N];
+      if (A.closed && B.closed) { if (run) { runs.push(run); run = null; } continue; }
+      // a gap: wall from A to B, each stretch seated on the lowest ground under it and a full wall-height over the highest
+      const L = Math.hypot(B.x - A.x, B.z - A.z), m = Math.max(1, Math.ceil(L / 24));
+      for (let q = 0; q < m; q++) {
+        const ax = A.x + (B.x - A.x) * q / m, az = A.z + (B.z - A.z) * q / m, bx = A.x + (B.x - A.x) * (q + 1) / m, bz = A.z + (B.z - A.z) * (q + 1) / m;
+        const gs = [hW(ax, az), hW(bx, bz), hW((ax + bx) / 2, (az + bz) / 2)], lo = surf(Math.max(Math.min(...gs), 0)) - 6, hi = Math.max(surf(Math.max(...gs, 0)), refY) + H;
+        put("box", (ax + bx) / 2, (az + bz) / 2, th, hi - lo, Math.hypot(bx - ax, bz - az) + 3, Math.atan2(bx - ax, bz - az), col, 0, { abs: lo, water: true });
+      }
+      (run = run || []).push(A, B);
+    }
+    if (run) runs.push(run);
+    const tower = (x, z, extra = 1) => { const g = [0, 1, 2, 3].map((k) => hW(x + Math.cos(k * 1.57) * tw * .5, z + Math.sin(k * 1.57) * tw * .5)).concat(hW(x, z));
+      const lo = surf(Math.max(Math.min(...g), 0)) - 6, hi = Math.max(surf(Math.max(...g, 0)), refY) + H * 1.35 * extra;
+      put("cyl", x, z, tw * extra, hi - lo, tw * extra, 0, towerCol, 0, { abs: lo, water: true }); put("cone", x, z, tw * extra * 1.15, tw * 0.6, tw * extra * 1.15, 0, o.roof || 0x2f3540, 0, { abs: hi, water: true }); };
+    let longest = null;
+    for (const r of runs) {
+      tower(r[0].x, r[0].z); tower(r[r.length - 1].x, r[r.length - 1].z);                       // towers where the wall meets the rock
+      for (let k = 2; k < r.length - 2; k += 4) tower(r[k].x, r[k].z);
+      if (!longest || r.length > longest.length) longest = r;
+    }
+    if (longest) { const g = longest[Math.floor(longest.length / 2)]; tower(g.x, g.z, 1.6); }     // the gatehouse on the main approach
+    return runs;
+  }
+  function curtain(pts, closed, H, th, col, refY, o = {}) {
+    const towerCol = o.towerCol || col, tw = o.tower || th * 2.4, every = o.every || 4, stopAtBarrier = !!o.stop;
+    const runs = []; let run = null, n = closed ? pts.length : pts.length - 1;
+    for (let k = 0; k < n; k++) {
+      const [x0, z0] = pts[k], [x1, z1] = pts[(k + 1) % pts.length], L = Math.hypot(x1 - x0, z1 - z0), m = Math.max(1, Math.ceil(L / 30));
+      for (let q = 0; q < m; q++) {
+        const ax = x0 + (x1 - x0) * q / m, az = z0 + (z1 - z0) * q / m, bx = x0 + (x1 - x0) * (q + 1) / m, bz = z0 + (z1 - z0) * (q + 1) / m;
+        const mx = (ax + bx) / 2, mz = (az + bz) / 2, gs = [hW(ax, az), hW(bx, bz), hW(mx, mz)];
+        const wet = Math.min(...gs) < 2, gy = surf(Math.max(hW(mx, mz), 0));
+        const natural = steepAt(mx, mz) > 0.75 || gy > refY + H * 0.9;      // cliff, or ground already above the wall-walk
+        if ((wet && !o.water) || natural) { if (run) { runs.push(run); run = null; } if (stopAtBarrier && natural) return finish(); continue; }
+        const lo = surf(Math.max(Math.min(...gs), 0)) - 6, hi = surf(Math.max(Math.max(...gs), 0)) + H;
+        put("box", mx, mz, th, hi - lo, Math.hypot(bx - ax, bz - az) + 3, Math.atan2(bx - ax, bz - az), col, 0, { abs: lo, water: true });
+        (run = run || []).push([ax, az, bx, bz]);
+      }
+    }
+    if (run) runs.push(run);
+    return finish();
+    function finish() {
+      if (run && !runs.includes(run)) runs.push(run);
+      const tower = (x, z) => { const g = [0, 1, 2, 3].map((k) => hW(x + Math.cos(k * 1.57) * tw * .5, z + Math.sin(k * 1.57) * tw * .5)).concat(hW(x, z));
+        const lo = surf(Math.max(Math.min(...g), 0)) - 6, hi = surf(Math.max(Math.max(...g), 0)) + H * 1.5;
+        put("cyl", x, z, tw, hi - lo, tw, 0, towerCol, 0, { abs: lo, water: true }); put("cone", x, z, tw * 1.15, tw * 0.6, tw * 1.15, 0, o.roof || 0x2f3540, 0, { abs: hi, water: true }); };
+      for (const r of runs) {
+        tower(r[0][0], r[0][1]); tower(r[r.length - 1][2], r[r.length - 1][3]);                      // anchor both ends
+        for (let k = every; k < r.length - 1; k += every) tower(r[k][0], r[k][1]);
+      }
+      return runs;
+    }
+  }
+
   const cleared = (x, z) => clearings.some((c) => Math.hypot(x - c.x, z - c.z) < c.r);
   const flatEnough = (x, z, r = 30) => {                      // keep buildings off cliff edges and steep ground
     const a = [hW(x - r, z), hW(x + r, z), hW(x, z - r), hW(x, z + r), hW(x, z)];
@@ -635,12 +748,29 @@ function start(meta, himg, idimg, limg, aimg) {
   //      through dense pale stone quarters, thickest towards Fruitful Vale; granaries, a library, a great hall, bridges
   function riverCity(cx, cz, tx, tz, riv, house, fortAt) {
     const nearRiver = (x, z, r) => riv.some(([rx, rz]) => Math.abs(rx - x) < r && Math.abs(rz - z) < r && Math.hypot(rx - x, rz - z) < r);
-    const phi = Math.atan2(tz - cz, tx - cx), reach = (a) => 380 + 300 * Math.max(0, Math.cos(a - phi)) ** 1.5;
+    const phi = Math.atan2(tz - cz, tx - cx), reach = (a) => 300 + 620 * Math.max(0, Math.cos(a - phi)) ** 1.1;   // the city spreads out over Fruitful Vale
     const WALL = [0xefe7d6, 0xe7ddc7, 0xf4eee2, 0xe2d6bd], AV = 8;
     // the fortress stands wholly on the right (eastern) bank, facing Fruitful Vale across from the fork
     let [fx, fz] = fortAt || [cx, cz];
-    castle(fx, fz, "eastern", house, false, "Valewatch");
+    castle(fx, fz, "eastern", house, false, "Valewatch", { noRing: true });
     clearings.push({ x: cx, z: cz, r: 760 });
+    // the University: a walled quadrangle of colleges in its own quarter, clear of the rivers and the fortress
+    let uni = null;
+    for (const da of [2.3, -2.3, 1.9, -1.9, 2.8, -2.8, 1.4, -1.4]) for (const rr of [470, 420, 520, 360]) {
+      if (uni) break; const a = phi + da, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
+      if (rr < reach(a) - 60 && !nearRiver(x, z, 120) && Math.hypot(x - fx, z - fz) > 300 && flatEnough(x, z, 70)) uni = [x, z, a];
+    }
+    if (!uni) for (let t = 0; t < 120 && !uni; t++) { const a = t * 2.4, rr = 260 + (t % 6) * 50, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
+      if (rr < reach(a) - 40 && !nearRiver(x, z, 90) && Math.hypot(x - fx, z - fz) > 260 && flatEnough(x, z, 60)) uni = [x, z, a]; }
+    // more of a capital's institutions: a second college, a theatre, the bathhouse, guildhalls; sites reserved like the university
+    const civic = [];
+    for (const [kind, r0] of [["college", 70], ["theatre", 60], ["baths", 50], ["guild", 40], ["guild", 40]]) {
+      for (let t = 0; t < 160; t++) { const a = t * 2.4 + civic.length, rr = 260 + (t % 7) * 50, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
+        if (rr > reach(a) - 40 || nearRiver(x, z, r0 + 30) || Math.hypot(x - fx, z - fz) < 240 || !flatEnough(x, z, r0 * 0.6)) continue;
+        if (uni && Math.hypot(x - uni[0], z - uni[1]) < 200) continue;
+        if (civic.some((c) => Math.hypot(x - c[1], z - c[2]) < c[3] + r0 + 30)) continue;
+        civic.push([kind, x, z, r0, a]); break; }
+    }
     // quarters: dense blocks of pale stone with inner courtyards, each wedge between two boulevards laid on its own grid
     for (let k = 0; k < AV; k++) {
       const b = (k + 0.5) / AV * Math.PI * 2, ux = Math.cos(b), uz = Math.sin(b), vx = -uz, vz = ux, half = Math.PI / AV;
@@ -651,8 +781,10 @@ function start(meta, himg, idimg, limg, aimg) {
         const r = Math.hypot(x - cx, z - cz), a = Math.atan2(z - cz, x - cx);
         const da = Math.abs(((a - b + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
         if (Math.hypot(x - fx, z - fz) < 200) continue;                              // the fortress grounds
+        if (uni && Math.hypot(x - uni[0], z - uni[1]) < 115) continue;               // the university's quadrangle
+        if (civic.some((c) => Math.hypot(x - c[1], z - c[2]) < c[3] + 14)) continue;
         if (da > half - 16 / Math.max(r, 1) || r < 120 || r > reach(a) || Math.abs(r - 430) < 14) continue;     // boulevards, the ring road
-        if (nearRiver(x, z, 34) || !flatEnough(x, z, 14)) continue;
+        if (nearRiver(x, z, 55) || !flatEnough(x, z, 14)) continue;   // houses stand back on the banks
         if (((i % 4) === 2 && ((j % 4) + 4) % 4 === 2) && rnd() < 0.7) continue;         // courtyards
         const hh = 20 + rnd() * 12;
         if (!put("box", x, z, 30, hh, 30, -b, pick(WALL))) continue;
@@ -667,21 +799,107 @@ function start(meta, himg, idimg, limg, aimg) {
       const [x, z, a] = wp[k], [x2, z2] = wp[(k + 1) % WN], L = Math.hypot(x2 - x, z2 - z), mx = (x + x2) / 2, mz = (z + z2) / 2;
       const av = ((a / (Math.PI * 2) * AV) % 1 + 1) % 1, gate = Math.min(av, 1 - av) < 0.5 / WN * AV;
       const wet = nearRiver(mx, mz, 26), gy = surf(Math.max(hW(mx, mz), 0));
-      if (wet) put("box", mx, mz, 14, 30, L + 4, Math.atan2(x2 - x, z2 - z), 0xd9cfb9, 0, { abs: 18, water: true });       // water-gate arch over the river
-      else put("box", mx, mz, 12, 26, L + 4, Math.atan2(x2 - x, z2 - z), 0xe4dac4, 0, { abs: gy - 6 });
-      if (gate && !wet) { put("box", x, z, 36, 44, 30, -a, 0xefe7d6); put("hip", x, z, 46, 16, 40, -a, 0x1f4d34, 44); }
-      else if (k % 6 === 0 && !nearRiver(x, z, 26)) { put("cyl", x, z, 22, 44, 22, 0, 0xe9e0cc); put("cone", x, z, 28, 20, 28, 0, 0x2a8f86, 44); }
+      if (nearRiver(mx, mz, 60)) continue;                         // the palisade ends at the riverbanks; the river is the moat
+      put("box", mx, mz, 6, 22, L + 3, Math.atan2(x2 - x, z2 - z), 0x5e4630, 0, { abs: gy - 4 });                       // timber palisade
+      if (gate) { put("box", x, z, 26, 34, 22, -a, 0x4e3a28); put("gable", x, z, 30, 12, 26, -a, 0x3a2a1e, 34); }
+      else if (k % 6 === 0) { put("box", x, z, 16, 36, 16, -a, 0x4e3a28); put("pyr", x, z, 20, 12, 20, -a, 0x3a2a1e, 36); }   // timber watchtowers
+      if (nearRiver(x2, z2, 60) || nearRiver(x - (x2 - x), z - (z2 - z), 60)) { put("box", x, z, 18, 40, 18, -a, 0x4e3a28); }   // a stout post at each bank
     }
-    // tree-lined boulevards, and bridges where they cross the rivers
+    // tree-lined boulevards; stone bridges carry them and the ring road right across the rivers on arched piers
+    const bridge = (x0, z0, x1, z1, w) => {
+      const L = Math.hypot(x1 - x0, z1 - z0), rot = Math.atan2(x1 - x0, z1 - z0), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      const top = Math.max(surf(Math.max(hW(x0, z0), 0)), surf(Math.max(hW(x1, z1), 0)), 4) + 8;
+      put("box", mx, mz, w + 8, 7, L + 30, rot, 0x6a4a2e, 0, { abs: top, water: true });                   // a timber deck from bank to bank
+      for (const sd of [-1, 1]) put("box", mx + Math.cos(rot) * (w / 2 + 4) * sd, mz - Math.sin(rot) * (w / 2 + 4) * sd, 3, 8, L + 30, rot, 0x553a22, 0, { abs: top + 7, water: true });
+      const np = Math.max(2, Math.round(L / 30));
+      for (let q = 0; q <= np; q++) { const t = q / np, px = x0 + (x1 - x0) * t, pz = z0 + (z1 - z0) * t;      // timber trestles
+        for (const sd of [-1, 1]) put("cyl", px + Math.cos(rot) * (w / 2 + 2) * sd, pz - Math.sin(rot) * (w / 2 + 2) * sd, 6, top + 26, 6, 0, 0x4a3424, 0, { abs: -26, water: true });
+        put("box", px, pz, w + 10, 4, 5, rot, 0x4a3424, 0, { abs: top - 4, water: true }); }
+      lightPts.push([mx, top + 22, mz, [1.0, 0.8, 0.5], 14, rnd() * 100]);
+    };
+    const spans = [];
+    const crossings = (path, w) => {                                // spans over each stretch of the path that lies over a river
+      let st = null;
+      for (let i = 0; i < path.length; i++) {
+        const [x, z] = path[i], wet = nearRiver(x, z, 40) && hW(x, z) < 12;   // over the river channel itself
+        if (wet && st === null) st = Math.max(i - 1, 0);
+        if ((!wet || i === path.length - 1) && st !== null) { const e = Math.min(i, path.length - 1);
+          const spanL = Math.hypot(path[e][0] - path[st][0], path[e][1] - path[st][1]);
+          if (spanL < 170 && !spans.some(([a, b]) => Math.hypot(a - path[st][0], b - path[st][1]) < 60)) {   // only true crossings, not runs along the river
+            bridge(...path[st], ...path[e], w); spans.push([...path[st], ...path[e]]); }
+          st = null; }
+      }
+    };
     for (let k = 0; k < AV; k++) {
-      const a = k / AV * Math.PI * 2;
+      const a = k / AV * Math.PI * 2, path = [];
+      for (let r = 140; r < reach(a) + 60; r += 14) path.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r]);
       for (let r = 140; r < reach(a); r += 28) {
         const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
-        if (Math.hypot(x - fx, z - fz) < 200) continue;
-        if (nearRiver(x, z, 30)) { put("box", x, z, 26, 6, 34, Math.atan2(Math.cos(a), Math.sin(a)), 0xcfc6b0, 0, { abs: surf(Math.max(hW(x, z), 0)) + 4, water: true }); continue; }
+        if (Math.hypot(x - fx, z - fz) < 200 || nearRiver(x, z, 34)) continue;
         for (const s2 of [-1, 1]) { const tx2 = x - Math.sin(a) * 11 * s2, tz2 = z + Math.cos(a) * 11 * s2;
           put("ico", tx2, tz2, 12, 12, 12, rnd() * 3, 0x2f5a2a, 2); }
       }
+    }
+    // bridges straight across the river where the city's streets meet it: the river points nearest the centre on each
+    // side of the fork, each bridge square to the river's local course and long enough to land on both banks
+    // one bridge over the northern reach by the fortress, one over the southern channel linking the south-west quarter
+    // to the theatre side; the western branch is left to the boats
+    { const sites = [[30, -140], [56, 252]].map(([dx, dz]) => {
+        let best = null, bd = 1e9; for (const [x, z] of riv) { const d = Math.hypot(x - cx - dx, z - cz - dz); if (d < bd) { bd = d; best = [x, z]; } }
+        return best; }).filter(Boolean);
+      const chosen = [];
+      for (const [x, z] of sites) {
+        if (chosen.some(([a, b]) => Math.hypot(a - x, b - z) < 190)) continue;
+        const near = riv.filter(([a, b]) => Math.hypot(a - x, b - z) < 55);
+        let sxx = 0, sxz = 0, szz = 0; const mx = near.reduce((t, p) => t + p[0], 0) / near.length, mz = near.reduce((t, p) => t + p[1], 0) / near.length;
+        for (const [a, b] of near) { sxx += (a - mx) ** 2; sxz += (a - mx) * (b - mz); szz += (b - mz) ** 2; }
+        const ang = 0.5 * Math.atan2(2 * sxz, sxx - szz), dx = Math.cos(ang), dz = Math.sin(ang);   // river direction
+        const px = -dz, pz = dx;                                                                 // across it
+        const reachBank = (sd) => { let t = 60, run = 0;                                        // walk out until the bank stays dry for a while
+          while (t < 320 && run < 4) { run = hW(x + px * t * sd, z + pz * t * sd) >= 14 && !nearRiver(x + px * t * sd, z + pz * t * sd, 30) ? run + 1 : 0; t += 6; }
+          return t - 6 * run + 18; };
+        const h0 = reachBank(-1), h1 = reachBank(1);                                             // long enough to land on both banks
+        let [ax, az, bx, bz] = [x - px * h0, z - pz * h0, x + px * h1, z + pz * h1];
+        if (chosen.length === 1) {                      // the southern bridge pivots on its far bank and heads straight for the fortress
+          if (Math.hypot(ax - fx, az - fz) < Math.hypot(bx - fx, bz - fz)) [ax, az, bx, bz] = [bx, bz, ax, az];
+          for (let it = 0; it < 3; it++) { const d0 = Math.hypot(fx - ax, fz - az); ax -= (fx - ax) / d0 * 25; az -= (fz - az) / d0 * 25; }   // start further out on the south-west bank
+          const D = Math.hypot(fx - ax, fz - az), ux = (fx - ax) / D, uz = (fz - az) / D;
+          let t = 60, run = 0, wet = false;                                   // cross the water, then land on the fortress bank
+          while (t < D - 120 && run < 4) { const qx = ax + ux * t, qz = az + uz * t, dry = hW(qx, qz) >= 14 && !nearRiver(qx, qz, 30);
+            if (!dry) wet = true; run = dry && wet ? run + 1 : 0; t += 6; }
+          t = t - 6 * run + 60; bx = ax + ux * t; bz = az + uz * t;   // run well up the fortress bank
+        }
+        bridge(ax, az, bx, bz, 22);
+        spans.push([ax, az, bx, bz]); chosen.push([x, z]);
+      } }
+    for (const [kind, x, z, r0, a] of civic) {
+      const rot = -a;
+      if (kind === "college") {                                                     // a second college: a smaller quad with a chapel
+        for (const [dx, dz, w, d] of [[0, -42, 100, 20], [0, 42, 100, 20], [-42, 0, 20, 64]]) {
+          const X = x + dx * Math.cos(rot) + dz * Math.sin(rot), Z = z - dx * Math.sin(rot) + dz * Math.cos(rot);
+          put("box", X, Z, w, 26, d, rot, 0xece2cc); put("gable", X, Z, w + 4, 12, d + 4, rot, 0x2a8f86, 26); }
+        put("box", x + 30, z, 22, 48, 40, rot, 0xf2ead8); put("pyr", x + 30, z, 28, 26, 28, rot, 0x1f4d34, 48);
+      } else if (kind === "theatre") {                                              // an open-air theatre: a half-ring of stone tiers
+        for (let k = 0; k <= 14; k++) { const b = rot + Math.PI * k / 14; put("box", x + Math.cos(b) * 48, z + Math.sin(b) * 48, 16, 20, 14, -b + Math.PI / 2, 0xddd2bb); }
+        put("box", x, z, 50, 6, 18, rot, 0x8a7a66);
+      } else if (kind === "baths") {                                                // the public baths: a domed hall over its pools
+        put("box", x, z, 70, 22, 50, rot, 0xefe7d6); put("dome", x, z, 40, 28, 40, 0, 0x2a8f86, 22);
+        put("box", x + 44, z, 22, 1.5, 34, rot, 0x3f86a8);
+      } else {                                                                      // guildhalls with tall stepped gables
+        put("box", x, z, 34, 40, 50, rot, 0xe2d6bd); put("gable", x, z, 36, 22, 52, rot, 0x6b4a2f, 40);
+      }
+    }
+    // the University
+    if (uni) {
+      const [ux0, uz0, ua] = uni, rot = -ua, c = Math.cos(rot), s3 = Math.sin(rot);
+      const U_ = (dx, dz) => [ux0 + dx * c + dz * s3, uz0 - dx * s3 + dz * c];
+      put("box", ux0, uz0, 150, 1.5, 150, rot, 0x3f6a34, 0);                                             // the lawn of the quad
+      for (const [dx, dz, w, d] of [[0, -62, 150, 26], [0, 62, 150, 26], [-62, 0, 26, 98], [62, 0, 26, 98]]) {
+        const [x, z] = U_(dx, dz); put("box", x, z, w, 32, d, rot, 0xefe6d2); put("gable", x, z, w + 4, 14, d + 4, rot, 0x2a6a5c, 32); }
+      { const [x, z] = U_(0, -62); put("box", x, z, 26, 96, 26, rot, 0xf2ead8); put("pyr", x, z, 32, 34, 32, rot, 0x1f4d34, 96);   // the clock tower
+        lightPts.push([x, surf(Math.max(hW(x, z), 0)) + 80, z, [1.0, 0.85, 0.55], 26, 1]); }
+      { const [x, z] = U_(0, 112); put("box", x, z, 54, 30, 60, rot, 0xf4eee2); put("dome", x, z, 46, 34, 46, 0, 0xc9a43c, 30); }   // the great hall
+      windowLights(ux0, uz0, 80, 26, [1.0, 0.8, 0.5], 20, 8, 30);
     }
     const at = (da, r) => [cx + Math.cos(phi + da) * r, cz + Math.sin(phi + da) * r];
     // the library: a long colonnaded hall under a green-glazed dome
@@ -696,8 +914,11 @@ function start(meta, himg, idimg, limg, aimg) {
         if (nearRiver(x, z, 30)) continue; put("cyl", x, z, 24, 48, 24, 0, 0xd2c6a6); put("cone", x, z, 28, 16, 28, 0, 0x5a4636, 48); } }
     // the market halls by the fortress, and the river quays
     { const [x, z] = at(Math.PI, 300); if (!nearRiver(x, z, 50)) { put("box", x, z, 80, 16, 50, -phi, 0xc9bfa8); put("hip", x, z, 96, 14, 64, -phi, 0x2a6a5c, 16); } }
-    for (const [rx, rz] of riv.filter((_, i) => i % 6 === 0)) { const d = Math.hypot(rx - cx, rz - cz);
-      if (d > 230 && d < 520) put("box", rx + 22, rz, 10, 4, 40, 0, 0xbfb6a0, 0, { abs: 3, water: true }); }
+    // timber quays along the river banks, set exactly on the water's edge beside the bridges
+    for (const [x0, z0, x1, z1] of spans) for (const e of [[x0, z0], [x1, z1]]) {
+      const L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L;
+      for (const sd of [-1, 1]) put("box", e[0] - uz * 34 * sd, e[1] + ux * 34 * sd, 6, 4, 36, Math.atan2(ux, uz), 0x5a4030, 0, { abs: Math.max(surf(Math.max(hW(e[0], e[1]), 0)), 3), water: true });
+    }
     windowLights(cx, cz, 640, 260, [1.0, 0.72, 0.4], 22, 6, 34);
     glows.push({ x: fx, y: surf(Math.max(hW(fx, fz), 0)) + 160, z: fz, size: 2200, col: [1.0, 0.75, 0.45], k: "city" });
     return [fx, fz];
@@ -723,9 +944,10 @@ function start(meta, himg, idimg, limg, aimg) {
     for (let k = 0; k <= 6; k++) { const x = ax + dx * k / 6, z = az + dz * k / 6, g = surf(Math.max(hW(x, z), 0));
       put("cyl", x, z, 56, H + 40, 56, 0, 0x8a8378, 0, { abs: g - 8 }); put("cone", x, z, 66, 40, 66, 0, 0x2f3540, 0, { abs: g + H + 32 }); }
     // lesser walls running on up the mountainsides beyond each end
-    seg(ax, az, ax - ux * FL, az - uz * FL, 50, 18, STONE); seg(bx, bz, bx + ux * FL, bz + uz * FL, 50, 18, STONE);
-    for (const [ex, ez] of [[ax - ux * FL, az - uz * FL], [bx + ux * FL, bz + uz * FL]]) { const g = surf(Math.max(hW(ex, ez), 0));
-      put("cyl", ex, ez, 36, 80, 36, 0, 0x8a8378, 0, { abs: g - 6 }); put("cone", ex, ez, 44, 26, 44, 0, 0x2f3540, 0, { abs: g + 74 }); }
+    // lesser walls carry on from each end only until the mountainside becomes a cliff, plugging the last of the gap
+    const ref = surf(Math.max(hW((ax + bx) / 2, (az + bz) / 2), 0)) + H;
+    curtain([[ax, az], [ax - ux * FL, az - uz * FL]], false, 60, 20, 0x8c857a, ref, { stop: true, towerCol: 0x8a8378, tower: 36, every: 6 });
+    curtain([[bx, bz], [bx + ux * FL, bz + uz * FL]], false, 60, 20, 0x8c857a, ref, { stop: true, towerCol: 0x8a8378, tower: 36, every: 6 });
     // the castle grows out of the wall itself: its great keep straddles the wall at the centre of the pass and juts out
     // on the outer side, facing down the pass towards any invader; the gate runs through its foot
     const cx = (ax + bx) / 2, cz = (az + bz) / 2, ox = -ix, oz = -iz;
@@ -761,13 +983,175 @@ function start(meta, himg, idimg, limg, aimg) {
       const [x, z] = at(dx, dz); put("box", x, z, w, 14, d, rot, STONE, 0, { abs: g, water: true }); put("gable", x, z, w + 2, 6, d + 2, rot, ROOF, 0, { abs: g + 14, water: true }); }
     { const [x, z] = at(41, -10); put("box", x, z, 14, 1, 14, rot, 0x4f7a3a, 0, { abs: g + 0.5, water: true }); }   // cloister garth
     { const [x, z] = at(-34, 4); put("box", x, z, 18, 12, 30, rot, 0xd8ccb2, 0, { abs: g, water: true }); put("gable", x, z, 20, 6, 32, rot, ROOF, 0, { abs: g + 12, water: true }); }
-    const R = 176, segs = 16;                                       // its ring wall, with the abbey at the centre
-    for (let k = 0; k < segs; k++) { const a = k / segs * Math.PI * 2, x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R;
-      put("box", x, z, 2 * Math.PI * R / segs * 1.02, 29, 15, -a + Math.PI / 2, 0x9a9182, 0, hW(x, z) < 2 ? { abs: 0, water: true } : {});
-      if (k % 4 === 0) put("cyl", x, z, 37, 60, 37, 0, 0x8a8274, 0, hW(x, z) < 2 ? { abs: -10, water: true } : {}); }
+    const R = 176, ring = [];                                       // its ring wall, the abbey at the centre; the cliffs do the rest
+    for (let k = 0; k < 22; k++) { const a = k / 22 * Math.PI * 2; ring.push([cx + Math.cos(a) * R, cz + Math.sin(a) * R]); }
+    curtain(ring, true, 36, 15, 0x9a9182, g, { towerCol: 0x8a8274, tower: 34, every: 5, water: true });
     windowLights(cx, cz, 50, 10, [1.0, 0.8, 0.5], 18, 4, 26);
     glows.push({ x: cx, y: g + 60, z: cz, size: 700, col: FIRE, k: "fire" });
   }
+
+  // ---- every port gets its waterfront: a stone quay along the shore, timber piers out into the water, warehouses and a crane
+  // sea as the original map draws it: no territory there and the ground below water (rivers and lakes do not count)
+  const seaAt = (x, z) => { const px = Math.floor((x / W + 0.5) * NX), py = Math.floor((z / H + 0.5) * NY);
+    if (px < 0 || py < 0 || px >= NX || py >= NY) return true; const k = (py * NX + px) * 4; return idp[k] * 256 + idp[k + 1] === 0 && hW(x, z) < 1; };
+  const shoreFrom = (cx, cz, maxR = 900) => {
+    let best = null;
+    for (let k = 0; k < 72; k++) { const a = k / 72 * Math.PI * 2; let r = 10;
+      while (r < maxR && !seaAt(cx + Math.cos(a) * r, cz + Math.sin(a) * r)) r += 6;
+      if (r < maxR && (!best || r < best.r)) best = { r, a }; }
+    return best;
+  };
+  function portWorks(cx, cz) {
+    // a medieval waterfront: tall narrow harbour houses shoulder to shoulder along the very edge of the land, a stone quay at
+    // their feet, and one or two broad piers standing wholly in the sea
+    const b = shoreFrom(cx, cz); if (!b) return;
+    const ux = Math.cos(b.a), uz = Math.sin(b.a), vx = -uz, vz = ux, rot = Math.atan2(ux, uz), along = Math.atan2(vx, vz);
+    const ex = cx + ux * b.r, ez = cz + uz * b.r;                                  // the first point of sea
+    const HOUSE = [0xb7a68a, 0x9c8a70, 0xc4b494, 0x8f7e66, 0xa89878], ROOF = [0x6a3a28, 0x5a3a2a, 0x7a4a30, 0x3e3a36];
+    const row = [];
+    for (let k = -5; k <= 5; k++) {                                                 // the harbour row, each house on the land's edge
+      let x = ex + vx * k * 19 - ux * 80, z = ez + vz * k * 19 - uz * 80, t = 0;
+      if (seaAt(x, z)) continue;
+      while (t < 160 && !seaAt(x + ux * 6, z + uz * 6)) { x += ux * 6; z += uz * 6; t += 6; }
+      if (t >= 160) continue;
+      x -= ux * 15; z -= uz * 15;                                                   // back the house onto dry ground
+      if (seaAt(x, z) || hW(x, z) < 1.5) continue;
+      const hh = 30 + rnd() * 24; row.push([x, z]);
+      put("box", x, z, 18, hh, 28, along, pick(HOUSE)); put("gable", x, z, 20, 13, 30, rot, pick(ROOF), hh);
+      put("box", x + ux * 17, z + uz * 17, 18, 5, 8, along, 0x8f877a, 0, { abs: 0.5, water: true });   // the quay at its door
+      if (rnd() < 0.5) lightPts.push([x + ux * 15, surf(Math.max(hW(x, z), 0)) + 8 + rnd() * hh, z + uz * 15, [1.0, 0.7, 0.35], 11, rnd() * 100]);
+    }
+    // piers run straight out from the quay in front of the harbour row, joined to it, and only where they end in open sea
+    const piers = 1 + (rnd() < 0.5 ? 1 : 0); let made = 0;
+    for (const hp of row.slice().sort(() => rnd() - .5)) {
+      if (made >= piers) break;
+      const [hx, hz] = hp, qx = hx + ux * 17, qz = hz + uz * 17;                     // the quay at the house's door
+      let L = 20; while (L < 140 && !seaAt(qx + ux * L, qz + uz * L)) L += 6;
+      L += 40; if (L > 170 || !seaAt(qx + ux * L, qz + uz * L) || row.some((o) => o !== hp && made && Math.hypot(o[0] - hx, o[1] - hz) < 30)) continue;
+      const mx = qx + ux * L / 2, mz = qz + uz * L / 2;
+      put("box", mx, mz, 14, 4, L, rot, 0x5a4632, 0, { abs: 3, water: true });
+      for (let t = -L / 2 + 10; t < L / 2; t += 28) for (const w of [-1, 1]) put("cyl", mx + ux * t + vx * w * 6, mz + uz * t + vz * w * 6, 3, 12, 3, 0, 0x3a2c20, 0, { abs: -6, water: true });
+      lightPts.push([qx + ux * L, 12, qz + uz * L, [1.0, 0.72, 0.38], 12, rnd() * 100]); made++;
+    }
+  }
+  // ---- the Court of Fire: an old pirate haven in Hidden Bay, the one landing on the Brand, taken and now held by House
+  //      Somber. Shanties and stilt-houses crowd the shore, rickety jetties run into the bay, the pirates' stockade is broken,
+  //      a burnt corsair lies half-sunk at its moorings, and over it all a new stone keep flies the black and green.
+  function pirateHaven(cx, cz, sdx, sdz, house) {
+    const nx = -sdz, nz = sdx, SH = [0x5a4632, 0x4a3a2a, 0x6a5440, 0x3e342c, 0x5c5248], RF = [0x2e2a26, 0x3a2e24, 0x4a3a2a, 0x2a2f2a];
+    clearings.push({ x: cx, z: cz, r: 420 });
+    for (let k = 0; k < 70; k++) {                                     // ramshackle shanties climbing back from the water
+      const r = 40 + Math.sqrt(rnd()) * 240, a = (rnd() - 0.5) * Math.PI * 1.3, dx = -sdx * Math.cos(a) + nx * Math.sin(a), dz = -sdz * Math.cos(a) + nz * Math.sin(a);
+      const x = cx + dx * r, z = cz + dz * r, w = 12 + rnd() * 12, d = 10 + rnd() * 12, hh = 8 + rnd() * 10, rot = rnd() * Math.PI;
+      if (!put("box", x, z, w, hh, d, rot, pick(SH), 0, { rx: (rnd() - .5) * .12, rz: (rnd() - .5) * .12 })) continue;
+      put("gable", x, z, w * 1.1, hh * 0.6, d * 1.1, rot, pick(RF), hh, { rz: (rnd() - .5) * .15 });
+    }
+    for (let k = 0; k < 16; k++) {                                     // stilt-houses over the water's edge
+      const t = (k / 15 - .5) * 320, x = cx + nx * t + sdx * (20 + rnd() * 30), z = cz + nz * t + sdz * (20 + rnd() * 30);
+      for (const [px, pz] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) put("cyl", x + px, z + pz, 2.5, 22, 2.5, 0, 0x3a2c20, 0, { abs: -8, water: true });
+      put("box", x, z, 16, 10, 14, rnd(), pick(SH), 0, { abs: 12, water: true }); put("gable", x, z, 18, 6, 16, rnd(), pick(RF), 0, { abs: 22, water: true });
+    }
+    for (const o of [-130, -40, 50, 140]) {                            // rickety jetties
+      const L = 110 + rnd() * 80, x = cx + nx * o + sdx * (L / 2 + 30), z = cz + nz * o + sdz * (L / 2 + 30), rot = Math.atan2(sdx, sdz) + (rnd() - .5) * .2;
+      put("box", x, z, 9, 3, L, rot, 0x4e3e2c, 0, { abs: 3, water: true, rz: (rnd() - .5) * .05 });
+      put("box", x + sdx * L / 2, z + sdz * L / 2, 3, 30, 3, 0, 0x3a2c20, 0, { abs: 0, water: true });
+      put("box", x + sdx * L / 2, z + sdz * L / 2, 1.5, 12, 16, rot, HOUSE_COL[house] || 0x00a84c, 0, { abs: 18, water: true });   // Somber colours now
+    }
+    { const x = cx + sdx * 90 - nx * 200, z = cz + sdz * 90 - nz * 200;  // the burnt corsair, half-sunk
+      put("box", x, z, 22, 12, 68, 0.6, 0x1a1512, 0, { abs: -9, water: true, rx: 0.12, rz: 0.35 });
+      put("box", x, z, 3, 40, 3, 0.6, 0x1a1512, 0, { abs: -2, water: true, rz: 0.5 }); }
+    const stake = (x, z) => { if (hW(x, z) > 2) put("cyl", x, z, 5, 26 + rnd() * 8, 5, 0, 0x4a3828, 0, { rx: (rnd() - .5) * .2, rz: (rnd() - .5) * .2 }); };
+    for (let k = 0; k < 110; k++) { const a = Math.PI * (0.15 + 0.7 * k / 110), t = a; if ((k % 23) < 5) continue;   // broken stockade
+      const r = 300, x = cx - sdx * Math.sin(t) * r + nx * Math.cos(t) * r, z = cz - sdz * Math.sin(t) * r + nz * Math.cos(t) * r; stake(x, z); }
+    { const x = cx + sdx * 18 + nx * 60, z = cz + sdz * 18 + nz * 60;   // gallows on the quay
+      put("box", x, z, 3, 26, 3, 0, 0x2a2018); put("box", x + nx * 12, z + nz * 12, 3, 26, 3, 0, 0x2a2018); put("box", x + nx * 6, z + nz * 6, 3, 3, 18, Math.atan2(nx, nz), 0x2a2018, 26); }
+    // the great house's keep, raised on the rise behind the haven
+    const kx = cx - sdx * 200, kz = cz - sdz * 200;
+    const ring = []; for (let k = 0; k < 20; k++) { const a = k / 20 * Math.PI * 2; ring.push([kx + Math.cos(a) * 90, kz + Math.sin(a) * 90]); }
+    curtain(ring, true, 34, 12, 0x3e3e42, surf(Math.max(hW(kx, kz), 0)), { towerCol: 0x333336, tower: 26, every: 5, roof: 0x1f5a34 });
+    let w = 80, y = 0;
+    for (let t = 0; t < 4; t++) { put("box", kx, kz, w, 30, w, 0.3, t ? 0x46464a : 0x38383b, y); put("hip", kx, kz, w * 1.35, 14, w * 1.35, 0.3, 0x1f5a34, y + 30); y += 36; w *= 0.74; }
+    put("box", kx, kz, 5, 50, 26, 0, HOUSE_COL[house] || 0x00a84c, y + 20);
+    windowLights(cx, cz, 280, 70, FIRE, 22, 4, 26); windowLights(kx, kz, 80, 20, FIRE, 24, 20, 120);
+    glows.push({ x: kx, y: surf(Math.max(hW(kx, kz), 0)) + 140, z: kz, size: 1000, col: FIRE, k: "fire" });
+    townLabels.push({ x: kx, z: kz, t: "Court of Fire" });
+  }
+
+  // ---- Yyrodh Abbey: an abbey like Sel Saro's in plan, but of dark stone, terraced into the Shadowmount it shelters
+  //      under: cloister on the lowest terrace, church above it, the bell tower set back against the rock
+  function mountainAbbey(cx, cz, house) {
+    const d = 30, gx = hW(cx + d, cz) - hW(cx - d, cz), gz = hW(cx, cz + d) - hW(cx, cz - d), gl = Math.hypot(gx, gz) || 1;
+    const ux = gx / gl, uz = gz / gl, rot = Math.atan2(ux, uz);                     // uphill, into the mountain
+    const STONE = 0x48464a, DARK = 0x2e2c30, ROOF = 0x1a1a1c;
+    const base = Math.max(surf(Math.max(hW(cx, cz), 0)), 6);
+    const terrace = (k, w, dpt) => {                                               // a terrace cut into the slope, walled at its front
+      const x = cx + ux * k * 70, z = cz + uz * k * 70;
+      const fp = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]].map(([a, b]) => hW(x + Math.cos(rot) * a * w / 2 + ux * b * dpt / 2, z - Math.sin(rot) * a * w / 2 + uz * b * dpt / 2));
+      const lo = surf(Math.max(Math.min(...fp), 0)) - 10, y = Math.max(base + k * 34, surf(Math.max(...fp, 0)) + 2);   // level with the uphill edge
+      put("box", x, z, w, y - lo, dpt, rot, DARK, 0, { abs: lo, water: true });
+      return [x, z, y];
+    };
+    const [c0x, c0z, y0] = terrace(0, 130, 80), [c1x, c1z, y1] = terrace(1, 110, 70), [c2x, c2z, y2] = terrace(2, 60, 50);
+    const at = (x, z, dx, dz) => [x + Math.cos(rot) * dx + ux * dz, z - Math.sin(rot) * dx + uz * dz];
+    for (const [dx, dz, w, dd] of [[-40, 0, 10, 60], [40, 0, 10, 60], [0, -26, 90, 10], [0, 26, 90, 10]]) {     // cloister ranges
+      const [x, z] = at(c0x, c0z, dx, dz); put("box", x, z, w, 14, dd, rot, STONE, 0, { abs: y0, water: true }); put("gable", x, z, w + 2, 6, dd + 2, rot, ROOF, 0, { abs: y0 + 14, water: true }); }
+    { const [x, z] = at(c0x, c0z, 0, 0); put("box", x, z, 60, 1, 34, rot, 0x2c3a2a, 0, { abs: y0 + 0.5, water: true }); }
+    { const [x, z] = at(c1x, c1z, 0, 0); put("box", x, z, 70, 30, 26, rot, STONE, 0, { abs: y1, water: true });                  // the church
+      put("gable", x, z, 72, 16, 28, rot, ROOF, 0, { abs: y1 + 30, water: true }); }
+    { const [x, z] = at(c1x, c1z, 40, 0); put("cyl", x, z, 26, 26, 26, 0, STONE, 0, { abs: y1, water: true }); put("dome", x, z, 26, 16, 26, 0, 0x3a3a3e, 0, { abs: y1 + 26, water: true }); }
+    { put("box", c2x, c2z, 18, 70, 18, rot, STONE, 0, { abs: y2, water: true }); put("pyr", c2x, c2z, 22, 26, 22, rot, ROOF, 0, { abs: y2 + 70, water: true });  // bell tower
+      put("box", c2x, c2z, 3, 18, 12, 0, HOUSE_COL[house] || 0x101010, 0, { abs: y2 + 96, water: true }); }
+    // walls only where the ground is open: the mountain itself closes the back
+    defenseRing(cx, cz, base, 40, 130, 340, { col: 0x3e3c40, towerCol: 0x353337, tower: 28, th: 13, roof: ROOF });
+    windowLights(cx, cz, 70, 14, [1.0, 0.7, 0.4], 18, 6, 40);
+  }
+  // ---- Black Redoubt's city: dense, rich and crowded around one of the busiest harbours in the Isles, on the mainland
+  //      side of the isthmus that runs out to the fortress
+  function redoubtCity(fx, fz, ox, oz, R, at) {
+    // Black Redoubt's city: as packed and built-up as Valewatch, but an Outer Blood city: dark stone, barrack yards and drill
+    // squares between the quarters, a war-college for its university, an arena for its theatre, all behind a soldier's wall
+    let [cx, cz] = at || [fx - ox * (R + 300), fz - oz * (R + 300)];
+    const OUT = [0x4d4a4a, 0x5a5552, 0x403c3c, 0x55504c, 0x625a54], RF = [0x2a2525, 0x3a2222, 0x332a26, 0x2e2a2a], RAD = 680;
+    clearings.push({ x: cx, z: cz, r: RAD + 80 });
+    const ok = (x, z) => hW(x, z) >= 3 && steepAt(x, z) < 1.1 && Math.hypot(x - fx, z - fz) > R + 50;   // houses climb the slopes
+    const plots = [];                                            // civic sites first, then streets fill around them
+    const site = (dx, dz, r) => {                               // the nearest workable ground to the intended spot
+      for (let t = 0; t < 40; t++) { const a = t * 2.4, q = t * 14, x = cx + dx + Math.cos(a) * q, z = cz + dz + Math.sin(a) * q;
+        if (ok(x, z) && steepAt(x, z) < 0.5 && !plots.some(([px, pz, pr]) => Math.hypot(x - px, z - pz) < pr + r)) { plots.push([x, z, r]); return [x, z]; } }
+      return null; };
+    const war = site(-260, -120, 110), arena = site(220, 160, 90), hall = site(40, -230, 70), yard1 = site(-80, 260, 80), yard2 = site(300, -140, 70);
+    const taken = (x, z) => plots.some(([px, pz, r]) => Math.hypot(x - px, z - pz) < r);
+    for (let i = -26; i <= 26; i++) for (let j = -26; j <= 26; j++) {                  // tight grid of tall, narrow houses
+      if (i % 4 === 0 || j % 5 === 0) continue;
+      const x = cx + i * 25 + (rnd() - .5) * 4, z = cz + j * 25 + (rnd() - .5) * 4, d = Math.hypot(x - cx, z - cz);
+      if (d > RAD * (0.9 + 0.2 * rnd()) || !ok(x, z) || taken(x, z)) continue;
+      const hh = (d < 300 ? 26 : 16) + rnd() * 18;
+      if (put("box", x, z, 21, hh, 21, 0.2, pick(OUT))) put("hip", x, z, 27, 8, 27, 0.2, pick(RF), hh);
+    }
+    if (war) {                                                                           // the war-college: a black quadrangle
+      const [x, z] = war; put("box", x, z, 170, 1, 170, 0.2, 0x3a3a34);
+      for (const [dx, dz, w, d] of [[0, -70, 170, 28], [0, 70, 170, 28], [-70, 0, 28, 112], [70, 0, 28, 112]]) {
+        const a = x + dx * Math.cos(0.2) + dz * Math.sin(0.2), b = z - dx * Math.sin(0.2) + dz * Math.cos(0.2);
+        put("box", a, b, w, 36, d, 0.2, 0x4a4646); put("gable", a, b, w + 4, 14, d + 4, 0.2, 0x2a2525, 36); }
+      put("box", x, z - 70, 28, 104, 28, 0.2, 0x433f3f); put("pyr", x, z - 70, 34, 36, 34, 0.2, 0x5a1414, 104);
+    }
+    if (arena) {                                                                         // the arena-theatre
+      const [x, z] = arena;
+      for (let k = 0; k < 28; k++) { const a = k / 28 * Math.PI * 2; put("box", x + Math.cos(a) * 70, z + Math.sin(a) * 70, 18, 34, 17, -a + Math.PI / 2, 0x5a524c); }
+      put("cyl", x, z, 104, 2, 104, 0, 0x7a6a50);
+    }
+    if (hall) { const [x, z] = hall; put("box", x, z, 60, 50, 90, 0.2, 0x4e4848); put("gable", x, z, 64, 30, 94, 0.2, 0x5a1414, 50); }   // the guildhall
+    for (const y of [yard1, yard2]) if (y) { const [x, z] = y;                           // drill yards ringed by barracks
+      put("box", x, z, 120, 1, 120, 0.2, 0x6a5e4a);
+      for (const sd of [-1, 1]) { put("box", x + sd * 66, z, 18, 16, 120, 0.2, 0x403c3c); put("gable", x + sd * 66, z, 20, 9, 122, 0.2, 0x2a2525, 16); } }
+    // the city wall, using the shore and the slopes where they serve and plugging the rest
+    const wr = []; for (let k = 0; k < 64; k++) { const a = k / 64 * Math.PI * 2; wr.push([cx + Math.cos(a) * (RAD + 40), cz + Math.sin(a) * (RAD + 40)]); }
+    curtain(wr, true, 48, 16, 0x3b3838, surf(Math.max(hW(cx, cz), 0)), { towerCol: 0x2e2b2b, tower: 34, every: 3 });
+    for (const da of [0, 1.6, 3.2, 4.8]) { const x = cx + Math.cos(da) * RAD * 0.7, z = cz + Math.sin(da) * RAD * 0.7; portWorks(x, z); }
+    windowLights(cx, cz, RAD, 360, [1.0, 0.42, 0.16], 22, 6, 46);
+    glows.push({ x: cx, y: surf(Math.max(hW(cx, cz), 0)) + 120, z: cz, size: 2000, col: FIRE, k: "city" });
+  }
+
   const STYLE = (s) => s.dev === "bylong" ? "bylong" : s.dev === "outer" ? "outer" : s.cul === "european" ? "european" : "eastern";
   const townLabels = [];
   for (const s of meta.settlements) {
@@ -780,17 +1164,21 @@ function start(meta, himg, idimg, limg, aimg) {
     const tit = s.castle === "Titan's roots";                     // the stump stands at the heart of its land, its port town apart
     const tcx = s.abbey ? cx - 200 : tit ? cx + 330 : cx, tcz = s.abbey ? cz + 160 : tit ? cz - 360 : cz;        // the abbey's port town sits a little apart
     if (s.castle === "The Northern Court" && meta.landmarks.northwall) { passWall(meta.landmarks.northwall); continue; }
+    if (s.haven) { const [hx, hz] = toWorld(s.haven.uv); pirateHaven(hx, hz, s.haven.sea[0], s.haven.sea[1], s.house); continue; }
     if (s.capital) { const [tx, tz] = toWorld(s.toward); const [fx, fz] = riverCity(cx, cz, tx, tz, (s.river || []).map(toWorld), s.house, s.fortuv && toWorld(s.fortuv)); townLabels.push({ x: fx, z: fz, t: s.castle }); continue; }
     if (s.fort) { const [fx, fz] = toWorld(s.fort);                // the fortress stands in place of its island; no town beside it
-      seaFort(fx, fz, s.out[0], s.out[1], s.house, s.fortR || 150); townLabels.push({ x: fx, z: fz, t: s.castle }); continue; }
+      seaFort(fx, fz, s.out[0], s.out[1], s.house, s.fortR || 150); redoubtCity(fx, fz, s.out[0], s.out[1], s.fortR || 150, s.cityuv && toWorld(s.cityuv)); townLabels.push({ x: fx, z: fz, t: s.castle }); continue; }
     if (n && s.dev === "vale_core" && (s.k === "large" || s.k === "medium")) planned(tcx, tcz, rad, n);
     else if (n) cluster(tcx, tcz, rad, n, s.castle === "Steel Redoubt" ? "forge" : st);
+    if (s.k === "port") portWorks(tcx, tcz);
     if (s.castle) {
       const big = s.k === "large" || s.k === "medium";
       const off = s.abbey ? 0 : 1;                                  // Yyrodh Abbey stands exactly in its pocket of darkness
       if (tit) stumpCastle(cx, cz);
       else if (s.castle === "Sel Saro Abbey") abbey(cx, cz, s.house);
       else if (s.castle === "Steel Redoubt") { castle(cx + 180, cz - 140, st, s.house, big, s.castle); forgeWorks(cx, cz); }
+      else if (s.abbey) mountainAbbey(cx, cz, s.house);
+      else if (s.castle === "Orc Deep") { castle(cx, cz, st, s.house, big, s.castle, { noRing: true }); mountainWalls(cx + 90, cz - 70, st); }
       else castle(cx + (n ? 180 * off : 0), cz - (n ? 140 * off : 0), st, s.house, big, s.castle);
       if (st === "outer") { barracks(cx, cz); windowLights(cx + 180, cz - 140, 230, 26, [1.0, 0.36, 0.12], 36); }
       windowLights(cx, cz, rad + 120, big ? 90 : 40, FIRE, big ? 30 : 26);
@@ -831,7 +1219,7 @@ function start(meta, himg, idimg, limg, aimg) {
       fragmentShader: COMMON + `uniform vec3 uCol; varying vec3 vW; varying vec3 vN;
         void main() { vec3 a = pow(uCol, vec3(2.2)); vec3 n = normalize(vN);
           vec3 sun = uSun * (vec3(0.2) + vec3(1.0, 0.96, 0.9) * max(dot(n, uSunDir), 0.0));
-          gl_FragColor = vec4(finish(a * (vec3(0.012) + realmLight(vW) * 1.3 + sun), distance(cameraPosition, vW)), 1.0); }` });
+          gl_FragColor = vec4(finish(a * (vec3(0.012) * uAmb + realmLight(vW) * 1.3 + sun), distance(cameraPosition, vW)), 1.0); }` });
   }
   for (const uv of LM.temples) { const [x, z] = toWorld(uv); const s = 0.7 + rnd() * 0.8;    // hidden temples and idols of the False Gods
     put("box", x, z, 60 * s, 14 * s, 60 * s, rnd(), 0x8c8170); put("box", x, z, 42 * s, 14 * s, 42 * s, rnd(), 0x8c8170, 14 * s);
@@ -851,8 +1239,16 @@ function start(meta, himg, idimg, limg, aimg) {
     put("box", x, z, 260, 10, 14, rot, 0xd8d0bc, 4); }
   if (LM.whalebones.length) marks.push({ uv: LM.whalebones[0], t: "Ancient Whale Graveyard" });
   const whaleObjs = [];
-  for (const w of LM.whales) { const [x, z] = toWorld(w.uv);                                   // great whales of the Abyss, surfacing
-    whaleObjs.push({ x, z, rot: w.rot, ph: rnd() * 6.28 }); }
+  // great whales of the Abyss, surfacing only in open, deep water: a whale's whole body and fluke must clear the sea floor,
+  // so each is moved to the nearest spot with deep water all round it (or left out if there is none close by)
+  const openWater = (x, z) => { for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2;
+      for (const r of [0, 150, 320, 520]) if (hW(x + Math.cos(a) * r, z + Math.sin(a) * r) > -60) return false; } return true; };
+  for (const w of LM.whales) {
+    let [x, z] = toWorld(w.uv), found = openWater(x, z);
+    for (let t = 1; t < 60 && !found; t++) { const a = t * 2.4, r = t * 60, nx = x + Math.cos(a) * r, nz = z + Math.sin(a) * r;
+      if (openWater(nx, nz)) { x = nx; z = nz; found = true; } }
+    if (found && !whaleObjs.some((o) => Math.hypot(o.x - x, o.z - z) < 700)) whaleObjs.push({ x, z, rot: w.rot, ph: rnd() * 6.28 });
+  }
   for (const uv of LM.redwoods) { const [x, z] = toWorld(uv); if (cleared(x, z)) continue; const hh = 110 + rnd() * 120;    // the Redwood Isle's towering trees
     put("cyl", x, z, 10, hh * .45, 10, 0, 0x4a2418); put("cone", x, z, 46, hh * .75, 46, 0, 0x1f2a18, hh * .3); }
   for (const uv of LM.wildwatch) { const [x, z] = toWorld(uv);                                 // Wildwatch: the dark tower on Outlook
@@ -1122,8 +1518,11 @@ function start(meta, himg, idimg, limg, aimg) {
     camera.aspect = host.clientWidth / host.clientHeight; camera.updateProjectionMatrix();
     for (const m of [winMat, glowMat, coreMat, candleGlowMat, candleCoreMat, smokeMat, shipLampMat]) if (m) m.uniforms.uScale.value = renderer.domElement.height / 2;
   });
-  let winterOn = false;
-  $("#winter").addEventListener("change", (e) => { winterOn = e.target.checked; });
+  let towerK = 1;                                                // summer full light, winter a quarter, dead: the towers go out
+  for (const b of document.querySelectorAll("#season button")) b.addEventListener("click", () => {
+    towerK = +b.dataset.k;
+    for (const o of document.querySelectorAll("#season button")) o.setAttribute("aria-pressed", o === b ? "true" : "false");
+  });
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const clock = new THREE.Clock();
   $("#loading").hidden = true;
@@ -1132,8 +1531,8 @@ function start(meta, himg, idimg, limg, aimg) {
     const t = reduce ? 0 : clock.getElapsedTime();
     uniforms.uTime.value = t;
     // Candle Towers wax and wane: full brightness down to 25% and back, every two minutes
-    const ck = (0.625 + 0.375 * Math.cos(t * Math.PI * 2 / 120)) * (winterOn ? 0.25 : 1);   // winter: a quarter of the towers' light
-    uniforms.uCandleK.value = ck; candleGlowMat.uniforms.uMul.value = ck; candleCoreMat.uniforms.uMul.value = 0.4 + 0.6 * ck;
+    const ck = (0.625 + 0.375 * Math.cos(t * Math.PI * 2 / 120)) * towerK;   // winter: a quarter of the towers' light; dead: none
+    uniforms.uCandleK.value = ck; candleGlowMat.uniforms.uMul.value = ck; candleCoreMat.uniforms.uMul.value = towerK ? 0.4 + 0.6 * ck : 0;
     beamMeshes.forEach((b, i) => { b.rotation.y = t * 0.6 + i * 2.1; });
     if (whaleObjs.length) updateWhales(t);
     if (ships.length) updateShips(t);
